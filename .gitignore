@@ -14,9 +14,14 @@ decompiled/
 docs/
 Solo Mod Ideas.txt
 .claude/
+.superpowers/
+refs/
 
 # BepInEx generated configs
 *.cfg
+
+# Upload bundles
+*.zip
 
 # OS
 Thumbs.db
