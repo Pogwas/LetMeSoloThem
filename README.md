@@ -39,6 +39,20 @@ Please open an [Issue](https://github.com/Pogwas/LetMeSoloThem/issues) and inclu
 - Other plugins installed
 - Steps to reproduce
 
+## Changelog
+
+### 0.3.1
+
+Compatibility fixes for the R.E.P.O. **Cosmetics Update** (game v0.4.x), which changed how the vanilla death pipeline interacts with the HUD, audio mixer, and inventory. In v0.3.0 the Spare Chassis revive would short-circuit the death pipeline before its tail-end cleanup ran, leaving three things broken after self-revive:
+
+- **Audio cutout** — most 3D positional audio (footsteps, ambience, enemies, items, cart) went silent post-revive. The death pipeline transitions the audio mixer snapshot to `Spectate`, and `GameDirector.gameStateMain` is empty — nothing restores the snapshot on the Death→Main transition. Vanilla restores it via `PlayerVoiceChat.ToggleMixer(false)`, but `voiceChat` is null in singleplayer, so the restoration path can't fire. v0.3.1 calls `AudioManager.SetSoundSnapshot(On)` directly.
+- **Inventory drop on death** — the Cosmetics Update added a new solo branch to `PlayerAvatar.PlayerDeathDone` that calls `Inventory.ForceUnequip()` unconditionally, dropping every hotbar item at the player's position. v0.3.1 adds a Harmony Prefix on `Inventory.ForceUnequip` that skips the drop when a chassis revive is incoming.
+- **HUD vanishes** — `GameDirector.gameStateDeath` `SetActive(false)`s the HUD parent GameObject (health bar, hotbar icons, haul total, crosshair, and the floating $ tags above grabbed valuables). The matching `HUD.Show()` only fires after the full death-freeze countdown, which our revive interrupts. v0.3.1 calls `HUD.Show()` in the custom revive flow.
+
+### 0.3.0
+
+Initial Thunderstore release. Spawn grace, Spare Chassis self-revive, Solo Sword + Tranq starter kit, Solo Damage Multiplier, on-screen HUD.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

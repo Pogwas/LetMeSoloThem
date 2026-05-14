@@ -11,6 +11,7 @@ obj/
 
 # Local-only content (excluded from public repo)
 decompiled/
+decompiled-fresh/
 docs/
 Solo Mod Ideas.txt
 .claude/

@@ -26,6 +26,8 @@ internal static class RepoRefs
         AccessTools.FieldRefAccess<PlayerAvatar, PlayerDeathHead>("playerDeathHead");
     internal static readonly AccessTools.FieldRef<PlayerAvatar, PlayerTumble> AvatarTumble =
         AccessTools.FieldRefAccess<PlayerAvatar, PlayerTumble>("tumble");
+    internal static readonly AccessTools.FieldRef<PlayerAvatar, PlayerVoiceChat> AvatarVoiceChat =
+        AccessTools.FieldRefAccess<PlayerAvatar, PlayerVoiceChat>("voiceChat");
     internal static readonly AccessTools.FieldRef<PlayerDeathHead, PhysGrabObject> DeathHeadPhysGrab =
         AccessTools.FieldRefAccess<PlayerDeathHead, PhysGrabObject>("physGrabObject");
     internal static readonly AccessTools.FieldRef<EnemyParent, Enemy> ParentEnemy =
@@ -237,6 +239,64 @@ public static class PlayerDeathDonePatch
         TrySafe("playerDeathEffects.Reset", () => { if (avatar.playerDeathEffects != null) avatar.playerDeathEffects.Reset(); });
         TrySafe("playerReviveEffects.Trigger", () => { if (avatar.playerReviveEffects != null) avatar.playerReviveEffects.Trigger(); });
 
+        // Audio mixer snapshot restoration. The death pipeline (GameDirector.gameStateDeath)
+        // walks the snapshot On → CutsceneOnly (when deathFreezeTimer expires) → Spectate (when
+        // gameStateTimer expires + SetSpectate fires). gameStateMain() is empty — nothing in the
+        // Death→Main transition restores the snapshot.
+        //
+        // Vanilla ReviveRPC restores it via voiceChat.ToggleMixer(_lobby:false) which calls
+        // SetSoundSnapshot(On) at PlayerVoiceChat.cs:649. BUT — voiceChat is null in solo (REPO
+        // doesn't allocate Photon voice chat in singleplayer), so vanilla's restoration path
+        // would also fail in solo if vanilla could revive in solo. We have to call the AudioManager
+        // directly.
+        //
+        // Also try the voiceChat path (no-op if vc is null) so MP voice chat mic routing gets
+        // restored too — ToggleMixer reassigns audioSource.outputAudioMixerGroup which the direct
+        // SetSoundSnapshot call doesn't touch.
+        TrySafe("voiceChat.ToggleMixer(false)", () =>
+        {
+            var vc = RepoRefs.AvatarVoiceChat(avatar);
+            Plugin.Log.LogDebug($"[ReviveAudio] voiceChat field: {(vc == null ? "NULL (expected in solo)" : "ok")}");
+            if (vc != null)
+            {
+                vc.ToggleMixer(_lobby: false);
+                Plugin.Log.LogDebug("[ReviveAudio] voiceChat.ToggleMixer(false) returned");
+            }
+        });
+
+        TrySafe("AudioManager.SetSoundSnapshot(On)", () =>
+        {
+            if (AudioManager.instance != null)
+            {
+                AudioManager.instance.SetSoundSnapshot(AudioManager.SoundSnapshot.On, 0.5f);
+                Plugin.Log.LogDebug("[ReviveAudio] AudioManager.SetSoundSnapshot(On, 0.5f) called directly (solo-safe path)");
+            }
+            else
+            {
+                Plugin.Log.LogWarning("[ReviveAudio] AudioManager.instance is null — cannot restore snapshot");
+            }
+        });
+
+        // GameDirector.gameStateDeath calls HUD.instance.Hide() in the death-start impulse (which
+        // SetActive(false)s the entire HUD parent GameObject — HealthUI, InventoryUI icons,
+        // HaulUI, AimUI, WorldSpaceUIParent etc. all go dark). The matching HUD.Show() only runs
+        // when gameStateTimer expires (~0.5s later) — but our revive triggers PlayerDeathDone's
+        // Postfix during that countdown, and GameDirector.Revive() flips state to Main before
+        // HUD.Show() ever fires. So the entire HUD stays SetActive(false) post-revive — no health
+        // bar, no inventory icons, no $ value tags above grabbed valuables. Restore it.
+        TrySafe("HUD.Show", () =>
+        {
+            if (HUD.instance != null)
+            {
+                HUD.instance.Show();
+                Plugin.Log.LogDebug("[Revive] HUD.Show() called — restored game HUD parent GameObject");
+            }
+            else
+            {
+                Plugin.Log.LogWarning("[Revive] HUD.instance is null — cannot restore HUD");
+            }
+        });
+
         TrySafe("playerHealth.HealOther(1)", () => { if (avatar.playerHealth != null) avatar.playerHealth.HealOther(1, effect: true); });
 
         TrySafe("playerTransform + parent active", () =>
@@ -265,11 +325,38 @@ public static class PlayerDeathDonePatch
         });
 
         TrySafe("GameDirector.Revive", () => { if (GameDirector.instance != null) GameDirector.instance.Revive(); });
-        TrySafe("SpectateCamera.StopSpectate", () => { if (SpectateCamera.instance != null) SpectateCamera.instance.StopSpectate(); });
+        TrySafe("SpectateCamera.StopSpectate", () =>
+        {
+            var sc = SpectateCamera.instance;
+            Plugin.Log.LogDebug($"[ReviveAudio] SpectateCamera.instance: {(sc == null ? "NULL (was death pipeline run?)" : "ok")}");
+            if (sc != null)
+            {
+                sc.StopSpectate();
+                Plugin.Log.LogDebug("[ReviveAudio] SpectateCamera.StopSpectate returned (should have reset AudioListener target to MainCamera)");
+            }
+        });
         TrySafe("PlayerController.Revive", () => { if (PlayerController.instance != null) PlayerController.instance.Revive(rotation.eulerAngles); });
         TrySafe("CameraGlitch.PlayLongHeal", () => { if (CameraGlitch.Instance != null) CameraGlitch.Instance.PlayLongHeal(); });
 
         Plugin.Log.LogDebug("[Revive] custom revive done");
+
+        // Diagnostic: capture the final audio state so we can see whether the snapshot transition
+        // and listener-follow restoration actually applied. If audio is still broken with these
+        // values "correct", the breakdown is elsewhere (e.g., HUD/Aim/Inventory state, different
+        // audio routing, or something only vanilla ReviveRPC restores that we missed).
+        try
+        {
+            var alf = AudioListenerFollow.instance;
+            string tgtName;
+            if (alf == null) tgtName = "<AudioListenerFollow.instance is null>";
+            else if (alf.TargetPositionTransform == null) tgtName = "<TargetPositionTransform null>";
+            else tgtName = alf.TargetPositionTransform.name;
+            Plugin.Log.LogDebug($"[ReviveAudio] post-revive AudioListener target: '{tgtName}' (expected 'Main Camera' or similar)");
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[ReviveAudio] post-revive listener log threw: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private static void DetachNearbyEnemies(Vector3 deathPos, Vector3 respawnPos, float radius)
@@ -520,7 +607,7 @@ public static class PlayerDeathDonePatch
         }
     }
 
-    private static bool ShouldTrigger()
+    internal static bool ShouldTrigger()
     {
         bool isSolo = PhotonNetwork.CurrentRoom == null
             || PhotonNetwork.CurrentRoom.PlayerCount <= 1;
@@ -572,6 +659,43 @@ public static class PlayerDeathDonePatch
             return TruckHealer.instance.transform.position;
         Plugin.Log.LogError("[Revive] No truck respawn anchor found, using Vector3.zero");
         return Vector3.zero;
+    }
+}
+
+// The Cosmetics Update (REPO v0.4.x) added a NEW solo branch to PlayerAvatar.PlayerDeathDone that
+// calls Inventory.ForceUnequip() unconditionally in singleplayer — dropping every hotbar item at
+// the player's vision position on death. (The pre-Cosmetics-Update decompile only had this drop
+// inside the MP-local branch, so it never affected solo runs before.) Since our PlayerDeathDonePatch
+// is a Postfix, vanilla runs first and items hit the floor before our chassis revive triggers,
+// leaving the player alive but empty-handed.
+//
+// Solution: Prefix Inventory.ForceUnequip and skip vanilla execution when a chassis revive is
+// available and will fire. The chassis revive then runs as normal and the player keeps their
+// inventory in slots. Players without a chassis (or with revive disabled / MP teammates still
+// alive) get the vanilla drop behavior unchanged.
+[HarmonyPatch(typeof(Inventory), nameof(Inventory.ForceUnequip))]
+public static class InventoryForceUnequipPatch
+{
+    [HarmonyPrefix]
+    public static bool Prefix()
+    {
+        if (!Plugin.ReviveEnabled.Value) return true;
+
+        var pc = PlayerController.instance;
+        if (pc == null || pc.playerAvatarScript == null) return true;
+
+        var avatar = pc.playerAvatarScript;
+        if (!RepoRefs.AvatarIsLocal(avatar)) return true;
+
+        string steamID = SemiFunc.PlayerGetSteamID(avatar);
+        if (!SpareChassisInventory.Has(steamID)) return true;
+
+        // Same gate the Postfix uses to decide whether to revive — keep them in lockstep so we
+        // don't preserve inventory when revive won't actually fire.
+        if (!PlayerDeathDonePatch.ShouldTrigger()) return true;
+
+        Plugin.Log.LogDebug("[Revive] Inventory.ForceUnequip skipped — chassis revive incoming, keeping hotbar items");
+        return false;
     }
 }
 
