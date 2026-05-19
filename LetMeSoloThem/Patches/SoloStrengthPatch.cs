@@ -15,92 +15,82 @@ public static class SoloStrengthGranter
 
     public static void TryGrantOnTick()
     {
-        // Step 1: Gating (silent early returns — these fire every frame, no log spam).
+        // Gating (silent early returns — fire every frame, no spam).
         if (!Plugin.SoloStrengthEnabled.Value) return;
         if (!SemiFunc.RunIsLevel()) return;
         if (LevelGenerator.Instance == null || !LevelGenerator.Instance.Generated) return;
         if (!SemiFunc.IsMasterClientOrSingleplayer()) return;
 
-        // Solo-only mode in MP lobby check: if WorksInMultiplayer is false AND there are 2+ players,
-        // bail. SemiFunc.PlayerGetList includes all players in the current room.
         if (!Plugin.SoloStrengthWorksInMultiplayer.Value)
         {
             var players = SemiFunc.PlayerGetList();
             if (players != null && players.Count > 1) return;
         }
 
-        // Step 2: New-level detection via EnemyDirector instance change.
-        // A new level instantiates a fresh EnemyDirector; ReferenceEquals catches that.
+        // New-level detection. Do NOT assign _lastSeenDirector yet — only after we've
+        // decided this tick owns this level's grant (or determined nothing's to be done).
         var ed = EnemyDirector.instance;
         if (ed == null || ReferenceEquals(ed, _lastSeenDirector)) return;
-        _lastSeenDirector = ed;
 
-        // Step 3: Determine grant amount.
+        // Determine grant amount.
         bool isRunStart = RunManager.instance != null && RunManager.instance.levelsCompleted == 0;
         int grantAmount = isRunStart
             ? Plugin.SoloStrengthStartingStrength.Value
             : Plugin.SoloStrengthPerRound.Value;
         if (grantAmount <= 0)
         {
+            // Pin: no grant for this level, don't keep re-checking every frame.
+            _lastSeenDirector = ed;
             Plugin.Log.LogDebug($"[SoloStrength] Skipped grant (amount=0, runStart={isRunStart})");
             return;
         }
 
-        // Step 4-6: Resolve player, init dict, grant via vanilla API.
+        // Pre-grant null guards — these are transient frame-state issues (player can load in
+        // a frame late), so return silently and retry next tick rather than logging + pinning.
+        var pc = PlayerController.instance;
+        if (pc == null || pc.playerAvatarScript == null) return;
+
+        string steamID = SemiFunc.PlayerGetSteamID(pc.playerAvatarScript);
+        if (string.IsNullOrEmpty(steamID)) return;
+
+        if (StatsManager.instance == null) return;
+        if (PunManager.instance == null) return;
+
+        // Commit to the grant. Both success and exception are terminal for this level —
+        // assign _lastSeenDirector in either branch so we don't spam-retry.
         try
         {
-            var pc = PlayerController.instance;
-            if (pc == null || pc.playerAvatarScript == null)
-            {
-                Plugin.Log.LogDebug("[SoloStrength] PlayerController not ready — skipping grant");
-                return;
-            }
-
-            string steamID = SemiFunc.PlayerGetSteamID(pc.playerAvatarScript);
-            if (string.IsNullOrEmpty(steamID))
-            {
-                Plugin.Log.LogDebug("[SoloStrength] SteamID empty — skipping grant");
-                return;
-            }
-
-            if (StatsManager.instance == null)
-            {
-                Plugin.Log.LogDebug("[SoloStrength] StatsManager.instance null — skipping grant");
-                return;
-            }
             // Ensure dict key exists before calling PunManager API. PunManager reads
-            // playerUpgradeStrength[steamID] without ContainsKey — would throw KeyNotFoundException
-            // if the local player hasn't been initialized in the dict yet (which can happen on
-            // first-frame-of-new-EnemyDirector, before vanilla shop flow has run).
+            // playerUpgradeStrength[steamID] without ContainsKey — would throw
+            // KeyNotFoundException if the local player hasn't been initialized in the
+            // dict yet (which can happen on first-frame-of-new-EnemyDirector, before
+            // vanilla shop flow has run).
             if (!StatsManager.instance.playerUpgradeStrength.ContainsKey(steamID))
             {
                 StatsManager.instance.playerUpgradeStrength[steamID] = 0;
             }
 
-            if (PunManager.instance == null)
-            {
-                Plugin.Log.LogDebug("[SoloStrength] PunManager.instance null — skipping grant");
-                return;
-            }
-
             // Vanilla call: adds grantAmount to playerUpgradeStrength[steamID], updates
-            // physGrabber.grabStrength immediately via UpdateGrabStrengthRightAway, broadcasts
-            // RPC to clients if in MP.
+            // physGrabber.grabStrength immediately via UpdateGrabStrengthRightAway,
+            // broadcasts RPC to clients if in MP.
             PunManager.instance.UpgradePlayerGrabStrength(steamID, grantAmount);
+
+            _lastSeenDirector = ed; // mark complete only after the grant lands
 
             int newTotal = StatsManager.instance.playerUpgradeStrength[steamID];
             Plugin.Log.LogInfo($"[SoloStrength] Granted +{grantAmount} Strength to {steamID} (runStart={isRunStart}, newTotal={newTotal})");
         }
         catch (Exception ex)
         {
+            _lastSeenDirector = ed; // pin even on exception — don't retry-spam every frame
             Plugin.Log.LogWarning($"[SoloStrength] Grant threw: {ex.GetType().Name}: {ex.Message}");
             return;
         }
 
-        // Step 7: UI feedback (inner try-catch — UI failure must not roll back the grant).
-        // StatsUI.Fetch() rebuilds the panel's text from current StatsManager state; ShowStats()
-        // triggers the 5s pop-in animation. Same two calls vanilla makes after a shop upgrade
-        // pickup (ItemUpgrade.cs:172-173).
+        // UI feedback (inner try-catch — UI failure must not roll back the grant).
+        // StatsUI.Fetch() rebuilds the panel's text from current StatsManager state;
+        // ShowStats() triggers the 5s pop-in animation. Same two calls vanilla makes
+        // after a shop upgrade pickup (ItemUpgrade.cs:172-173).
         try
         {
             if (StatsUI.instance != null)
