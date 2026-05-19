@@ -184,14 +184,14 @@ public class Plugin : BaseUnityPlugin
         SoloStrengthStartingStrength = Config.Bind(
             "Solo Strength", "StartingStrength", 2,
             new ConfigDescription(
-                "Strength upgrade levels granted ONCE on the first level of each new run. Each level = +0.2 grab strength (vanilla math). 2 (default) = +0.4 grab strength bonus at run start. 0 = disable the run-start grant. Range 0-99.",
-                new AcceptableValueRange<int>(0, 99)));
+                "Strength upgrade levels granted ONCE on the first level of each new run. Each level = +0.2 grab strength (vanilla math). 2 (default) = +0.4 grab strength bonus at run start. 0 = disable the run-start grant. Range 0-10.",
+                new AcceptableValueRange<int>(0, 10)));
 
         SoloStrengthPerRound = Config.Bind(
             "Solo Strength", "StrengthPerRound", 0,
             new ConfigDescription(
-                "Strength upgrade levels granted on EACH subsequent level start (after level 1). 0 (default) = front-loaded grant only, no per-round drip. 1+ = steady accumulation across the run. Range 0-99.",
-                new AcceptableValueRange<int>(0, 99)));
+                "Strength upgrade levels granted on EACH subsequent level start (after level 1). 0 (default) = front-loaded grant only, no per-round drip. 1+ = steady accumulation across the run. Range 0-10.",
+                new AcceptableValueRange<int>(0, 10)));
 
         SoloStrengthWorksInMultiplayer = Config.Bind(
             "Solo Strength", "WorksInMultiplayer", false,
