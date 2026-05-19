@@ -41,6 +41,10 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloDamageDuoMult;
     internal static ConfigEntry<float> SoloDamageTrioMult;
     internal static ConfigEntry<float> SoloDamageQuadMult;
+    internal static ConfigEntry<bool> SoloStrengthEnabled;
+    internal static ConfigEntry<int> SoloStrengthStartingStrength;
+    internal static ConfigEntry<int> SoloStrengthPerRound;
+    internal static ConfigEntry<bool> SoloStrengthWorksInMultiplayer;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -172,6 +176,26 @@ public class Plugin : BaseUnityPlugin
             new ConfigDescription(
                 "Damage multiplier when 4 or more players are in the run. 1.0 (default) = vanilla. Set above 1.0 to make full lobbies harder.",
                 new AcceptableValueRange<float>(0f, 2f)));
+
+        SoloStrengthEnabled = Config.Bind(
+            "Solo Strength", "Enabled", true,
+            "Master toggle for the Solo Strength grant system. When false, no Strength upgrade levels are granted on level start.");
+
+        SoloStrengthStartingStrength = Config.Bind(
+            "Solo Strength", "StartingStrength", 2,
+            new ConfigDescription(
+                "Strength upgrade levels granted ONCE on the first level of each new run. Each level = +0.2 grab strength (vanilla math). 2 (default) = +0.4 grab strength bonus at run start. 0 = disable the run-start grant. Range 0-99.",
+                new AcceptableValueRange<int>(0, 99)));
+
+        SoloStrengthPerRound = Config.Bind(
+            "Solo Strength", "StrengthPerRound", 0,
+            new ConfigDescription(
+                "Strength upgrade levels granted on EACH subsequent level start (after level 1). 0 (default) = front-loaded grant only, no per-round drip. 1+ = steady accumulation across the run. Range 0-99.",
+                new AcceptableValueRange<int>(0, 99)));
+
+        SoloStrengthWorksInMultiplayer = Config.Bind(
+            "Solo Strength", "WorksInMultiplayer", false,
+            "When false (default), the grant only fires in true solo (Photon room player count <= 1). When true, the host (master client) also gets the grant in MP lobbies. Default false because Strength as a personal-stat buff doesn't fit the mod's solo-rebalance theme when teammates can share carrying duty.");
 
         _harmony = new Harmony(PluginGuid);
         _harmony.PatchAll();
