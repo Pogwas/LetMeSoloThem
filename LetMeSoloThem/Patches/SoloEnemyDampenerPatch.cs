@@ -53,7 +53,7 @@ public static class SoloEnemyDampenerPatch
 
             // Both dials at vanilla — nothing to scale (also avoids rounding drift on the
             // int counter fields when dividing by exactly 1.0).
-            if (detectionMult >= 1f && pursuitMult >= 1f) return;
+            if (Mathf.Approximately(detectionMult, 1f) && Mathf.Approximately(pursuitMult, 1f)) return;
 
             string detLog = "detection vanilla";
             string purLog = "pursuit vanilla";
