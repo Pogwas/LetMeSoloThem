@@ -167,8 +167,6 @@ public static class SoloSwordGranter
     private static Item _cachedSwordItem;
     private static float _firstWaitTime = -1f;
     private static EnemyDirector _lastSeenDirector;
-    private const float ExtractionPointWaitTimeout = 3f; // seconds
-    private const float PlayerSettleSeconds = 2f;
 
     public static bool IsOurSword(GameObject go)
     {
@@ -183,9 +181,8 @@ public static class SoloSwordGranter
         if (!SemiFunc.IsMasterClientOrSingleplayer()) return;
         if (LevelGenerator.Instance == null || !LevelGenerator.Instance.Generated) return;
 
-        // Reset per-grant wait timer on a new gameplay level (new EnemyDirector instance).
-        // Without this, _firstWaitTime would carry over from the first level and instantly
-        // fall back to the player-position spawn on re-grant.
+        // Reset the per-grant wait timer on each new gameplay level (new EnemyDirector instance),
+        // so _firstWaitTime doesn't carry over and instantly fall back on re-grant.
         var ed = EnemyDirector.instance;
         if (ed != null && !ReferenceEquals(ed, _lastSeenDirector))
         {
@@ -193,133 +190,52 @@ public static class SoloSwordGranter
             _lastSeenDirector = ed;
         }
 
-        // If the previously granted sword still exists (carried or somewhere in scene), don't
-        // double-grant. Unity's overloaded == returns true on a destroyed object, so this
-        // naturally re-grants if the sword was lost across a level transition.
+        // If the previously granted sword still exists, don't double-grant. Unity-null catches
+        // destroyed objects so we naturally re-grant after a level transition that dropped it.
         if (_grantedSwordGO != null) return;
 
         var pc = PlayerController.instance;
         if (pc == null || pc.playerAvatarScript == null) return;
-        if (StatsManager.instance == null || StatsManager.instance.itemDictionary == null) return;
 
-        // Cache the sword Item once found so we don't iterate the dictionary every tick.
         if (_cachedSwordItem == null)
         {
-            if (StatsManager.instance.itemDictionary.Count == 0) return;
-            foreach (var item in StatsManager.instance.itemDictionary.Values)
-            {
-                if (item == null) continue;
-                string soName = item.name ?? "";
-                string displayName = item.itemName ?? "";
-                string normalized = soName.Replace("Item ", "").ToLower();
-                if (normalized == "sword"
-                    || displayName.ToLower() == "sword"
-                    || soName.ToLower().Contains("sword")
-                    || displayName.ToLower().Contains("sword"))
-                {
-                    _cachedSwordItem = item;
-                    Plugin.Log.LogInfo($"[SoloSword] Matched sword item — name='{soName}', itemName='{displayName}'");
-                    break;
-                }
-            }
+            _cachedSwordItem = SoloGrantHelper.FindItemByKey("sword");
             if (_cachedSwordItem == null)
             {
-                var names = new System.Collections.Generic.List<string>();
-                foreach (var item in StatsManager.instance.itemDictionary.Values)
+                // Only give up permanently once the dictionary is actually populated and still
+                // has no sword — a null/empty dictionary just means "not loaded yet, retry".
+                if (StatsManager.instance != null && StatsManager.instance.itemDictionary != null
+                    && StatsManager.instance.itemDictionary.Count > 0)
                 {
-                    if (item != null) names.Add($"{item.name}|{item.itemName}");
+                    Plugin.Log.LogWarning("[SoloSword] No sword found in itemDictionary; skipping grant");
+                    _permanentGiveup = true;
                 }
-                Plugin.Log.LogWarning($"[SoloSword] No sword found among {names.Count} items. Names (name|itemName): {string.Join(", ", names)}");
-                _permanentGiveup = true; // item not in dictionary — fatal, don't spam retries
                 return;
             }
+            Plugin.Log.LogInfo($"[SoloSword] Matched sword item — name='{_cachedSwordItem.name}', itemName='{_cachedSwordItem.itemName}'");
         }
-        Item swordItem = _cachedSwordItem;
 
-        // Resolve where to spawn the sword. "Player" mode (default) drops it in front of the local
-        // player; "ExtractionPoint" mode uses an extraction point's safetySpawn (the "checkpoint"),
-        // waiting up to ExtractionPointWaitTimeout for one to exist before falling back to the
-        // player's position. See `[Solo Sword] SpawnLocation`.
+        // Resolve where to spawn (see `[Solo Sword] SpawnLocation`). Zero offset — the sword is
+        // the primary item; the tranq spawns off this same point with a small side-offset.
         var avatar = pc.playerAvatarScript;
-        var avatarT = avatar.transform;
         Vector3 pos;
         Quaternion rot;
         string spawnLoc;
-
-        if (Plugin.SoloItemSpawnLocation.Value == "Player")
+        if (!SoloGrantHelper.TryGetSpawnTarget(avatar, ref _firstWaitTime, Vector3.zero, out pos, out rot, out spawnLoc))
         {
-            // Player mode (default): wait a couple of seconds so the game has teleported the player
-            // to the level's spawn point before we drop the sword at their feet.
-            if (_firstWaitTime < 0f) _firstWaitTime = Time.realtimeSinceStartup;
-            if (Time.realtimeSinceStartup - _firstWaitTime < PlayerSettleSeconds) return; // retry next tick
-            pos = avatarT.position + avatarT.forward * 1.0f + Vector3.up * 0.5f;
-            rot = avatarT.rotation;
-            spawnLoc = $"player position {avatarT.position}";
-        }
-        else
-        {
-            ExtractionPoint extPt = null;
-            var allExtPts = Object.FindObjectsOfType<ExtractionPoint>();
-            foreach (var ep in allExtPts)
-            {
-                if (ep != null && ep.safetySpawn != null)
-                {
-                    extPt = ep;
-                    break;
-                }
-            }
-
-            if (extPt != null)
-            {
-                pos = extPt.safetySpawn.position + Vector3.up * 0.5f;
-                rot = extPt.safetySpawn.rotation;
-                spawnLoc = $"extraction point {extPt.safetySpawn.position}";
-            }
-            else
-            {
-                // Extraction points may take a few seconds to instantiate after Generated=true.
-                // Wait up to ExtractionPointWaitTimeout, then fall back to player position so
-                // the player at least gets *some* sword visible on screen.
-                if (_firstWaitTime < 0f) _firstWaitTime = Time.realtimeSinceStartup;
-                float waited = Time.realtimeSinceStartup - _firstWaitTime;
-                if (waited < ExtractionPointWaitTimeout) return; // keep retrying, no log spam
-                pos = avatarT.position + avatarT.forward * 1.0f + Vector3.up * 0.5f;
-                rot = avatarT.rotation;
-                spawnLoc = $"player position {avatarT.position} (waited {waited:F1}s, no extraction point)";
-            }
+            return; // still within the wait window
         }
 
-        GameObject spawned;
-        if (GameManager.instance.gameMode == 0)
-        {
-            spawned = Object.Instantiate(swordItem.prefab.Prefab, pos, rot);
-        }
-        else
-        {
-            spawned = PhotonNetwork.InstantiateRoomObject(swordItem.prefab.ResourcePath, pos, rot, 0);
-        }
+        var spawned = SoloGrantHelper.SpawnItem(_cachedSwordItem, pos, rot, "SoloSword");
+        if (spawned == null) return;
 
-        if (spawned == null)
-        {
-            Plugin.Log.LogWarning("[SoloSword] Spawn returned null — will retry next tick");
-            return;
-        }
-
-        // CRITICAL: assign _grantedSwordGO IMMEDIATELY after spawn succeeds. Anything below
-        // could throw; if we waited until after damage-reduction we'd risk the bug that put
-        // 486 swords on the floor in v0.2.2 (next tick would see _grantedSwordGO null and
-        // re-spawn).
+        // CRITICAL: assign _grantedSwordGO IMMEDIATELY, before the throw-prone glow + damage-
+        // reduction below. If those threw with _grantedSwordGO still null, the next tick would
+        // see null and re-spawn — the v0.2.2 "486 swords on the floor" bug.
         _grantedSwordGO = spawned;
 
-        // Defensive: prefab templates can be stored inactive; instantiation copies that state.
-        if (!spawned.activeSelf)
-        {
-            spawned.SetActive(true);
-            Plugin.Log.LogInfo("[SoloSword] Spawned sword was inactive — set active");
-        }
         // Sword glow — brighter than the tranq so it stands out as the hero item.
         SoloGrantHelper.AttachBlueGlow(spawned, intensity: 5f, range: 6f);
-        Plugin.Log.LogDebug($"[SoloSword] Diagnostic: activeSelf={spawned.activeSelf}, activeInHierarchy={spawned.activeInHierarchy}, scene='{spawned.scene.name}', pos={spawned.transform.position}");
 
         // Reduce damage on this instance only — modifying the spawned GameObject's HurtCollider
         // component, not the prefab/SO. Other swords keep full damage.

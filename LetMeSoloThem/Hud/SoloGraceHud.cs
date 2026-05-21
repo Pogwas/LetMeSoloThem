@@ -41,7 +41,6 @@ public class SoloGraceHud : MonoBehaviour
             SoloSwordGranter.TryGrantOnTick();
             SoloTranqGranter.TryGrantOnTick();
             SoloStrengthGranter.TryGrantOnTick();
-            PendingHeal.TryOnTick();
             TrackChassisTransition();
             if (shouldLog) ChassisDiagnostic();
         }
