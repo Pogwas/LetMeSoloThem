@@ -133,7 +133,7 @@ public class SoloGraceHud : MonoBehaviour
             return;
         }
 
-        int playerCount = SemiFunc.PlayerGetList().Count;
+        int playerCount = SemiFunc.PlayerGetList()?.Count ?? 1;
         if (playerCount != 1)
         {
             _shouldShowGrace = false;

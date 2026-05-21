@@ -1,4 +1,3 @@
-using System.Collections;
 using HarmonyLib;
 using LetMeSoloThem.State;
 using Photon.Pun;
@@ -200,7 +199,7 @@ public static class PlayerDeathDonePatch
             DetachNearbyEnemies(deathPos, respawnPos, 20f);
             ForceReleaseSpewer(avatar);
 
-            Plugin.Log.LogDebug("[Revive] sync step 5: applying HP top-up + i-frames");
+            Plugin.Log.LogDebug("[Revive] sync step 4: applying HP top-up + i-frames");
             ApplyHeal(avatar);
         }
         catch (System.Exception ex)

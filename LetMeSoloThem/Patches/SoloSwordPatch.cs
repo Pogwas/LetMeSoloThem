@@ -124,7 +124,7 @@ internal static class SoloGrantHelper
             spawned.SetActive(true);
             Plugin.Log.LogInfo($"[{tag}] Spawned object was inactive — set active");
         }
-        Plugin.Log.LogInfo($"[{tag}] Diagnostic: activeSelf={spawned.activeSelf}, activeInHierarchy={spawned.activeInHierarchy}, scene='{spawned.scene.name}', pos={spawned.transform.position}");
+        Plugin.Log.LogDebug($"[{tag}] Diagnostic: activeSelf={spawned.activeSelf}, activeInHierarchy={spawned.activeInHierarchy}, scene='{spawned.scene.name}', pos={spawned.transform.position}");
         return spawned;
     }
 
@@ -319,7 +319,7 @@ public static class SoloSwordGranter
         }
         // Sword glow — brighter than the tranq so it stands out as the hero item.
         SoloGrantHelper.AttachBlueGlow(spawned, intensity: 5f, range: 6f);
-        Plugin.Log.LogInfo($"[SoloSword] Diagnostic: activeSelf={spawned.activeSelf}, activeInHierarchy={spawned.activeInHierarchy}, scene='{spawned.scene.name}', pos={spawned.transform.position}");
+        Plugin.Log.LogDebug($"[SoloSword] Diagnostic: activeSelf={spawned.activeSelf}, activeInHierarchy={spawned.activeInHierarchy}, scene='{spawned.scene.name}', pos={spawned.transform.position}");
 
         // Reduce damage on this instance only — modifying the spawned GameObject's HurtCollider
         // component, not the prefab/SO. Other swords keep full damage.
@@ -370,7 +370,7 @@ public static class ItemMeleeFixedUpdatePatch
     }
 }
 
-// Grants the local player ONE Tranq Gun, exactly once per process lifetime, at the same time
+// Grants the local player ONE Tranq Gun, re-granted each new level if the carried one was lost, at the same time
 // and location as the Solo Sword (with a small offset so they don't overlap). No special
 // damage modification — Tranq Gun is non-lethal by design and useful as a stun tool against
 // Critical-tier enemies (Robe, Clown, Huntsman). Standard battery drains as normal.
@@ -493,7 +493,7 @@ public static class SoloTranqGranter
 }
 
 // Patches the dart fired BY our granted Tranq Gun so its enemyStunTime matches the configured
-// value (default 9s instead of vanilla 18s). ItemGun.ShootBulletRPC instantiates a fresh
+// value (default 3s instead of vanilla 18s). ItemGun.ShootBulletRPC instantiates a fresh
 // ItemGunBullet from bulletPrefab and caches its HurtCollider into the gun's `hurtCollider`
 // field (ItemGun.cs:459). Postfix grabs that reference and rewrites the stun duration on the
 // just-spawned dart. Other tranq guns are unaffected.
@@ -547,6 +547,6 @@ public static class ItemGunShootBulletPatch
         float lifeAfter = battery != null ? battery.batteryLife : -1f;
         int intAfter = battery != null ? BatteryLifeIntRef(battery) : -1;
 
-        Plugin.Log.LogInfo($"[SoloTranq] Shot #{_shotCount} fired (stun={stunValue:F1}s patched on {hcCount} HurtCollider(s), battery={lifeBefore:F1}/{intBefore}→{lifeAfter:F1}/{intAfter})");
+        Plugin.Log.LogDebug($"[SoloTranq] Shot #{_shotCount} fired (stun={stunValue:F1}s patched on {hcCount} HurtCollider(s), battery={lifeBefore:F1}/{intBefore}→{lifeAfter:F1}/{intAfter})");
     }
 }
