@@ -187,9 +187,9 @@ public class Plugin : BaseUnityPlugin
             "Master toggle for the Solo Strength grant system. When false, no Strength upgrade levels are granted on level start.");
 
         SoloStrengthStartingStrength = Config.Bind(
-            "Solo Strength", "StartingStrength", 2,
+            "Solo Strength", "StartingStrength", 3,
             new ConfigDescription(
-                "Strength upgrade levels granted ONCE on the first level of each new run. Each level = +0.2 grab strength (vanilla math). 2 (default) = +0.4 grab strength bonus at run start. 0 = disable the run-start grant. Range 0-10.",
+                "Strength upgrade levels granted ONCE on the first level of each new run. Each level = +0.2 grab strength (vanilla math). 3 (default) = +0.6 grab strength bonus at run start. 0 = disable the run-start grant. Range 0-10.",
                 new AcceptableValueRange<int>(0, 10)));
 
         SoloStrengthPerRound = Config.Bind(
