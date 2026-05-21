@@ -203,29 +203,29 @@ public class Plugin : BaseUnityPlugin
             "When false (default), the grant only fires in true solo (Photon room player count <= 1). When true, the host (master client) also gets the grant in MP lobbies. Default false because Strength as a personal-stat buff doesn't fit the mod's solo-rebalance theme when teammates can share carrying duty.");
 
         SoloEnemyEnabled = Config.Bind(
-            "Solo Enemy", "Enabled", true,
-            "Master toggle for Solo Enemy Scaling. When false, enemy detection is left at vanilla values.");
+            "Solo Enemy Awareness", "Enabled", true,
+            "Master toggle for Solo Enemy Awareness. When false, enemy detection is left at vanilla values.");
 
         SoloEnemyDetectionSolo = Config.Bind(
-            "Solo Enemy", "DetectionSolo", 0.5f,
+            "Solo Enemy Awareness", "DetectionSolo", 0.5f,
             new ConfigDescription(
                 "Detection intensity when 1 player is in the run. 1.0 = vanilla; lower = enemies detect you slower and from shorter range (vision-cone range scaled down, more consecutive sightings needed before they aggro); 0.0 = enemies effectively cannot spot you via their vision cone. 0.5 (default) is roughly half as easily detected. Point-blank close-range detection is deliberately left intact.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
         SoloEnemyDetectionDuo = Config.Bind(
-            "Solo Enemy", "DetectionDuo", 0.75f,
+            "Solo Enemy Awareness", "DetectionDuo", 0.75f,
             new ConfigDescription(
                 "Detection intensity when 2 players are in the run. 0.75 (default) = mild dampening. 1.0 = vanilla.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
         SoloEnemyDetectionTrio = Config.Bind(
-            "Solo Enemy", "DetectionTrio", 0.9f,
+            "Solo Enemy Awareness", "DetectionTrio", 0.9f,
             new ConfigDescription(
                 "Detection intensity when 3 players are in the run. 0.9 (default) = slight dampening. 1.0 = vanilla.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
         SoloEnemyDetectionQuad = Config.Bind(
-            "Solo Enemy", "DetectionQuad", 1f,
+            "Solo Enemy Awareness", "DetectionQuad", 1f,
             new ConfigDescription(
                 "Detection intensity when 4 or more players are in the run. 1.0 (default) = exact vanilla — the feature no-ops in full lobbies.",
                 new AcceptableValueRange<float>(0f, 1f)));
