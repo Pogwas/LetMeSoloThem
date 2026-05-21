@@ -50,10 +50,6 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloEnemyDetectionDuo;
     internal static ConfigEntry<float> SoloEnemyDetectionTrio;
     internal static ConfigEntry<float> SoloEnemyDetectionQuad;
-    internal static ConfigEntry<float> SoloEnemyPursuitSolo;
-    internal static ConfigEntry<float> SoloEnemyPursuitDuo;
-    internal static ConfigEntry<float> SoloEnemyPursuitTrio;
-    internal static ConfigEntry<float> SoloEnemyPursuitQuad;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -208,7 +204,7 @@ public class Plugin : BaseUnityPlugin
 
         SoloEnemyEnabled = Config.Bind(
             "Solo Enemy", "Enabled", true,
-            "Master toggle for Solo Enemy Scaling. When false, enemy detection and pursuit are left at vanilla values.");
+            "Master toggle for Solo Enemy Scaling. When false, enemy detection is left at vanilla values.");
 
         SoloEnemyDetectionSolo = Config.Bind(
             "Solo Enemy", "DetectionSolo", 0.5f,
@@ -232,30 +228,6 @@ public class Plugin : BaseUnityPlugin
             "Solo Enemy", "DetectionQuad", 1f,
             new ConfigDescription(
                 "Detection intensity when 4 or more players are in the run. 1.0 (default) = exact vanilla — the feature no-ops in full lobbies.",
-                new AcceptableValueRange<float>(0f, 1f)));
-
-        SoloEnemyPursuitSolo = Config.Bind(
-            "Solo Enemy", "PursuitSolo", 0.5f,
-            new ConfigDescription(
-                "Pursuit intensity when 1 player is in the run. 1.0 = vanilla; lower = once an enemy is chasing you it gives up faster (shorter chase duration, shorter memory of your last-seen position, harder to keep its chase timer refreshed); 0.0 = enemies drop the chase almost immediately. 0.5 (default) is roughly half as persistent.",
-                new AcceptableValueRange<float>(0f, 1f)));
-
-        SoloEnemyPursuitDuo = Config.Bind(
-            "Solo Enemy", "PursuitDuo", 0.75f,
-            new ConfigDescription(
-                "Pursuit intensity when 2 players are in the run. 0.75 (default) = mild dampening. 1.0 = vanilla.",
-                new AcceptableValueRange<float>(0f, 1f)));
-
-        SoloEnemyPursuitTrio = Config.Bind(
-            "Solo Enemy", "PursuitTrio", 0.9f,
-            new ConfigDescription(
-                "Pursuit intensity when 3 players are in the run. 0.9 (default) = slight dampening. 1.0 = vanilla.",
-                new AcceptableValueRange<float>(0f, 1f)));
-
-        SoloEnemyPursuitQuad = Config.Bind(
-            "Solo Enemy", "PursuitQuad", 1f,
-            new ConfigDescription(
-                "Pursuit intensity when 4 or more players are in the run. 1.0 (default) = exact vanilla — the feature no-ops in full lobbies.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
         _harmony = new Harmony(PluginGuid);
