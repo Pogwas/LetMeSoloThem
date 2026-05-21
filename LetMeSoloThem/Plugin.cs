@@ -13,7 +13,7 @@ public class Plugin : BaseUnityPlugin
 {
     public const string PluginGuid = "com.pogwas.letmesolothem";
     public const string PluginName = "Let me Solo Them";
-    public const string PluginVersion = "0.3.1";
+    public const string PluginVersion = "0.5.0";
 
     internal static Plugin Instance;
     internal static ManualLogSource Log;

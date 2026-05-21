@@ -1,8 +1,8 @@
 {
   "name": "LetMeSoloThem",
-  "version_number": "0.3.1",
+  "version_number": "0.5.0",
   "website_url": "https://github.com/Pogwas/LetMeSoloThem",
-  "description": "Solo-rebalance for R.E.P.O.: spawn grace, Spare Chassis self-revive, Solo Sword + Tranq starter kit, configurable damage scaling.",
+  "description": "Solo-rebalance for R.E.P.O.: spawn grace, Spare Chassis self-revive, Solo Sword + Tranq starter kit, Strength grants, enemy-awareness dampening, configurable damage scaling.",
   "dependencies": [
     "BepInEx-BepInExPack-5.4.2305"
   ]

@@ -10,6 +10,8 @@ Every gameplay value is exposed as a config entry. Tune to taste.
 - **Spare Chassis self-revive** — Free extra-lives system. Configurable starting lives, per-level grants, respawn location, and HP-on-revive. Includes a zero-HP backup that catches self-destruct edge cases the vanilla death pipeline misses.
 - **Solo Sword + Tranq starter kit** — Spawns an unlimited-durability sword and a tranq gun in front of you at level start. Both are configurable (damage %, stun duration, fire rate, spawn location).
 - **Solo Damage Multiplier** — Scales player-incoming damage by lobby size. Defaults: solo 0.5×, duo 0.75×, trio 0.9×, quad 1.0× (vanilla).
+- **Solo Strength grant** — Grants Strength upgrade levels at the start of a run (and optionally each level after), so a lone player can haul heavier loot. Configurable amounts and MP behavior.
+- **Solo Enemy Awareness** — Scales enemy detection (vision range and sightings needed to aggro) down by lobby size, so a solo player isn't spotted as easily. Defaults: solo 0.5×, duo 0.75×, trio 0.9×, quad 1.0× (vanilla).
 - **On-screen HUD** — Shows the grace countdown and chassis state.
 
 ## Installation
@@ -28,6 +30,8 @@ Every gameplay value is exposed as a config entry. Tune to taste.
 | `Solo Sword` | Sword grant, damage %, spawn location |
 | `Solo Tranq` | Tranq gun grant, stun duration, fire rate |
 | `Solo Damage` | Player-count-keyed damage multipliers (solo/duo/trio/quad) |
+| `Solo Strength` | Strength upgrade levels granted at run start and per round |
+| `Solo Enemy Awareness` | Player-count-keyed enemy detection dampening |
 
 ## Bug reports
 
@@ -40,6 +44,13 @@ Please open an [Issue](https://github.com/Pogwas/LetMeSoloThem/issues) and inclu
 - Steps to reproduce
 
 ## Changelog
+
+### 0.5.0
+
+Two new solo-rebalance features.
+
+- **Solo Strength grant** — Automatically grants Strength upgrade levels at the start of a run (default +3), with an optional per-level drip. Lets a solo player carry heavier valuables without buying the upgrade. Off in multiplayer by default; all amounts are configurable.
+- **Solo Enemy Awareness** — Scales enemy detection down by lobby size — vision-cone range is shortened and more consecutive sightings are needed before an enemy aggros. Defaults: solo 0.5×, duo 0.75×, trio 0.9×, quad 1.0× (vanilla). Point-blank close-range detection is left intact.
 
 ### 0.3.1
 
