@@ -85,9 +85,29 @@ internal static class CarryEscapeTracker
 
     public static void OnCarryStart(PlayerAvatar local)
     {
-        // Identifier wiring comes in Task 5; for now log + early-return.
-        Plugin.Log.LogDebug($"[CarryEscape] OnCarryStart fired (identifier not yet wired)");
-        _localPlayer = local;
+        try
+        {
+            var (enemy, kind) = EnemyKindIdentifier.IdentifyCarrier(local);
+            if (kind == EnemyKind.None || enemy == null)
+            {
+                Plugin.Log.LogDebug("[CarryEscape] OnCarryStart fired but no carry enemy found (likely fall or PhysGrabber tumble) — ignoring.");
+                return;
+            }
+
+            _currentEnemy = enemy;
+            _currentKind = kind;
+            _localPlayer = local;
+            _timeRemaining = Plugin.SoloCarryEscapeTimerSeconds.Value;
+            _strugglePresses = 0;
+            _lastInputTime = 0f;
+
+            Plugin.Log.LogDebug($"[CarryEscape] armed: enemy={kind}, timer={_timeRemaining:F1}s, threshold={Plugin.SoloCarryEscapeStrugglePresses.Value} presses");
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[CarryEscape] OnCarryStart threw: {ex.GetType().Name}: {ex.Message}");
+            ClearState();
+        }
     }
 
     public static void TryOnTick()
@@ -104,5 +124,105 @@ internal static class CarryEscapeTracker
         _timeRemaining = 0f;
         _strugglePresses = 0;
         _lastInputTime = 0f;
+    }
+}
+
+// Walks the scene to find which carry-capable enemy is currently targeting the local player.
+// Returns first match using the priority order: Hidden -> Oogly -> Spinny -> HeartHugger gas
+// -> Upscream -> Spewer. If nothing matches, returns EnemyKind.None (means the tumble fired
+// from a non-carry source like a fall or PhysGrabber interaction — no-op).
+internal static class EnemyKindIdentifier
+{
+    public static (Enemy enemy, EnemyKind kind) IdentifyCarrier(PlayerAvatar local)
+    {
+        if (local == null) return (null, EnemyKind.None);
+
+        // Helper — resolves the Enemy parent regardless of access modifier on each enemy's
+        // private/internal back-reference field. Walks up the GameObject hierarchy.
+        static Enemy GetEnemyParent(Component c) => c == null ? null : c.GetComponentInParent<Enemy>();
+
+        // 1. Hidden
+        foreach (var h in UnityEngine.Object.FindObjectsOfType<EnemyHidden>())
+        {
+            if (h == null) continue;
+            try
+            {
+                if (RepoRefs.HiddenPlayerTarget(h) == local)
+                {
+                    var e = GetEnemyParent(h);
+                    if (e != null) return (e, EnemyKind.Hidden);
+                }
+            }
+            catch { /* benign — field missing means we skip this candidate */ }
+        }
+
+        // 2. Oogly
+        foreach (var o in UnityEngine.Object.FindObjectsOfType<EnemyOogly>())
+        {
+            if (o == null) continue;
+            try
+            {
+                if (RepoRefs.OoglyGrabbedPlayer(o) == local)
+                {
+                    var e = GetEnemyParent(o);
+                    if (e != null) return (e, EnemyKind.Oogly);
+                }
+            }
+            catch { }
+        }
+
+        // 3. Spinny
+        foreach (var s in UnityEngine.Object.FindObjectsOfType<EnemySpinny>())
+        {
+            if (s == null) continue;
+            try
+            {
+                if (RepoRefs.SpinnyPlayerTarget(s) == local)
+                {
+                    var e = GetEnemyParent(s);
+                    if (e != null) return (e, EnemyKind.Spinny);
+                }
+            }
+            catch { }
+        }
+
+        // 4. HeartHugger gas — both fields are non-public, access via FieldRef.
+        foreach (var gc in UnityEngine.Object.FindObjectsOfType<EnemyHeartHuggerGasChecker>())
+        {
+            if (gc == null) continue;
+            try
+            {
+                var list = RepoRefs.GasCheckerPlayersColliding(gc);
+                var hh = RepoRefs.GasCheckerHeartHugger(gc);
+                if (list != null && list.Contains(local) && hh != null)
+                {
+                    var e = GetEnemyParent(hh);
+                    if (e != null) return (e, EnemyKind.HeartHuggerGas);
+                }
+            }
+            catch { }
+        }
+
+        // 5. Upscream — animation-driven brief tumble (1.5s). Skip identification — by the
+        // time we'd resolve+escape, the tumble has typically already auto-ended. EnemyKind.None
+        // is returned for Upscream-driven tumbles, the OnCarryStart "no match" path logs and
+        // no-ops. (Refine if playtest shows Upscream-locks are actually a problem.)
+
+        // 6. Spewer (mid-carry). playerTarget is private — use FieldRef.
+        foreach (var sm in UnityEngine.Object.FindObjectsOfType<EnemySlowMouth>())
+        {
+            if (sm == null) continue;
+            try
+            {
+                if (RepoRefs.SlowMouthPlayerTarget(sm) == local)
+                {
+                    var e = GetEnemyParent(sm);
+                    if (e != null) return (e, EnemyKind.Spewer);
+                }
+            }
+            catch { }
+        }
+
+        return (null, EnemyKind.None);
     }
 }
