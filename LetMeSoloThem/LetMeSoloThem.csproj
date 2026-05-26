@@ -35,6 +35,10 @@
       <HintPath>$(RepoManagedDir)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(RepoManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>$(RepoManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>false</Private>

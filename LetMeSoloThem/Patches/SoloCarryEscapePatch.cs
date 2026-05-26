@@ -308,3 +308,45 @@ internal static class ForceLeaveHelpers
         RepoRefs.SlowMouthPlayerTarget(sm) = null;
     }
 }
+
+// Per-frame "did the player struggle this frame?" detector. Returns (struggled, wasAttack)
+// where wasAttack is true if the struggle was specifically a mouse-click (used for the
+// damage-on-attack mechanic). Debounced via _lastInputTime to prevent auto-fire keyboards
+// from instant-escaping in one frame.
+internal struct InputProbeResult
+{
+    public bool Struggled;
+    public bool WasAttack;
+}
+
+internal static class InputProbe
+{
+    public static InputProbeResult Sample(ref float lastInputTime)
+    {
+        var result = new InputProbeResult();
+        var debounce = Plugin.SoloCarryEscapeStruggleInputDebounceSeconds.Value;
+        if (Time.time - lastInputTime < debounce) return result; // debounced — skip
+
+        // Attack (mouse click) - separate flag so the caller can dispatch damage.
+        if (Input.GetMouseButtonDown(0))
+        {
+            result.Struggled = true;
+            result.WasAttack = true;
+            lastInputTime = Time.time;
+            return result;
+        }
+
+        // Movement keys + jump key — generic struggle, no damage.
+        if (Input.GetKeyDown(KeyCode.Space) ||
+            Input.GetKeyDown(KeyCode.W) ||
+            Input.GetKeyDown(KeyCode.A) ||
+            Input.GetKeyDown(KeyCode.S) ||
+            Input.GetKeyDown(KeyCode.D))
+        {
+            result.Struggled = true;
+            lastInputTime = Time.time;
+        }
+
+        return result;
+    }
+}
