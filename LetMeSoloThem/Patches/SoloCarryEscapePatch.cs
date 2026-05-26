@@ -246,6 +246,7 @@ internal static class ForceLeaveHelpers
                 case EnemyKind.HeartHuggerGas: ForceHeartHuggerGasLeave(enemy); break;
                 case EnemyKind.Upscream: ForceUpscreamLeave(enemy); break;
                 case EnemyKind.Spewer: ForceSpewerLeave(enemy); break;
+                // EnemyKind.None: no per-kind state to flip; deaggro pass still runs below.
             }
 
             // Common deaggro pass.
@@ -287,12 +288,12 @@ internal static class ForceLeaveHelpers
     private static void ForceHeartHuggerGasLeave(Enemy enemy)
     {
         var hh = enemy.GetComponentInChildren<EnemyHeartHugger>();
-        if (hh == null) { Plugin.Log.LogDebug("[CarryEscape] HeartHugger component not found"); return; }
+        if (hh == null) { Plugin.Log.LogDebug("[CarryEscape] HeartHugger component not found on enemy"); return; }
         // Degrow cancels the active gas + Aggro state cleanly per the decompile.
         hh.currentState = EnemyHeartHugger.State.Degrow;
     }
 
-    private static void ForceUpscreamLeave(Enemy enemy)
+    private static void ForceUpscreamLeave(Enemy _enemy)
     {
         // Best-effort: Upscream's tumble is animation-driven and brief (1.5s).
         // Force-leaving usually arrives after the tumble already expired. Log + no-op.
