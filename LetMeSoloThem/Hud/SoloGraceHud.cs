@@ -41,6 +41,7 @@ public class SoloGraceHud : MonoBehaviour
             SoloSwordGranter.TryGrantOnTick();
             SoloTranqGranter.TryGrantOnTick();
             SoloStrengthGranter.TryGrantOnTick();
+            CarryEscapeTracker.TryOnTick();
             TrackChassisTransition();
             if (shouldLog) ChassisDiagnostic();
         }
