@@ -4,6 +4,23 @@ using UnityEngine;
 
 namespace LetMeSoloThem.Patches;
 
+internal enum EnemyKind
+{
+    None,
+    Hidden,
+    Oogly,
+    Spinny,
+    HeartHuggerGas,
+    Upscream,
+    Spewer
+}
+
+internal enum EscapeReason
+{
+    TimerExpired,
+    StruggleThreshold
+}
+
 // Solo Carry Escape — break out of enemy lockdown states in solo R.E.P.O. play.
 // Covers EnemyHidden, EnemyOogly, EnemySpinny, EnemyHeartHugger (gas), EnemyUpscream,
 // and mid-carry EnemySlowMouth (Spewer). Hybrid mechanic: hard timer ceiling + struggle
@@ -57,14 +74,35 @@ public static class PlayerTumbleRequestPatch
 // (per-frame tick).
 internal static class CarryEscapeTracker
 {
-    // To be implemented in Task 4 + Task 8.
+    private static Enemy _currentEnemy;
+    private static EnemyKind _currentKind = EnemyKind.None;
+    private static PlayerAvatar _localPlayer;
+    private static float _timeRemaining;
+    private static int _strugglePresses;
+    private static float _lastInputTime;
+
+    private static bool IsArmed => _currentKind != EnemyKind.None;
+
     public static void OnCarryStart(PlayerAvatar local)
     {
-        Plugin.Log.LogDebug($"[CarryEscape] OnCarryStart (skeleton — identifier not yet wired)");
+        // Identifier wiring comes in Task 5; for now log + early-return.
+        Plugin.Log.LogDebug($"[CarryEscape] OnCarryStart fired (identifier not yet wired)");
+        _localPlayer = local;
     }
 
     public static void TryOnTick()
     {
-        // No-op until Task 8 wires in the tick logic.
+        if (!IsArmed) return;
+        // Tick logic comes in Task 8.
+    }
+
+    private static void ClearState()
+    {
+        _currentEnemy = null;
+        _currentKind = EnemyKind.None;
+        _localPlayer = null;
+        _timeRemaining = 0f;
+        _strugglePresses = 0;
+        _lastInputTime = 0f;
     }
 }
