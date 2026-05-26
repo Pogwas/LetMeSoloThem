@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Photon.Pun;
 using UnityEngine;
 
 namespace LetMeSoloThem.Patches;
@@ -32,10 +33,15 @@ public static class PlayerTumbleRequestPatch
     // Solo-gating: fire in solo, OR when WorksInMultiplayer is on, OR when all other players are dead.
     private static bool ShouldTrigger()
     {
-        var players = SemiFunc.PlayerGetList();
-        if (players == null || players.Count <= 1) return true; // solo
+        // Solo check via Photon room count — authoritative, avoids load-in race where
+        // SemiFunc.PlayerGetList() may return just 1 while a 2nd client is still joining.
+        bool isSolo = PhotonNetwork.CurrentRoom == null
+            || PhotonNetwork.CurrentRoom.PlayerCount <= 1;
+        if (isSolo) return true;
         if (Plugin.SoloCarryEscapeWorksInMultiplayer.Value) return true;
         // MP with WorksInMultiplayer=false: only fire if all OTHER players are dead
+        var players = SemiFunc.PlayerGetList();
+        if (players == null) return true;
         foreach (var p in players)
         {
             if (p == null) continue;
