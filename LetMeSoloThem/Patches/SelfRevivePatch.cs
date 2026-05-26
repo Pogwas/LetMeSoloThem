@@ -58,6 +58,9 @@ internal static class RepoRefs
 
     internal static readonly AccessTools.FieldRef<EnemyHeartHuggerGasChecker, EnemyHeartHugger> GasCheckerHeartHugger =
         AccessTools.FieldRefAccess<EnemyHeartHuggerGasChecker, EnemyHeartHugger>("enemyHeartHugger");
+
+    internal static readonly AccessTools.FieldRef<PlayerTumble, bool> TumbleIsTumbling =
+        AccessTools.FieldRefAccess<PlayerTumble, bool>("isTumbling");
 }
 
 public static class FreeChassisGranter

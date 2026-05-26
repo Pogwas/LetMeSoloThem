@@ -113,7 +113,85 @@ internal static class CarryEscapeTracker
     public static void TryOnTick()
     {
         if (!IsArmed) return;
-        // Tick logic comes in Task 8.
+        if (!Plugin.SoloCarryEscapeEnabled.Value) return;
+
+        try
+        {
+            // 1. Exit check: vanilla released the tumble early (player died, distance broke, enemy died).
+            var tumble = _localPlayer != null ? RepoRefs.AvatarTumble(_localPlayer) : null;
+            if (_localPlayer == null || tumble == null || !RepoRefs.TumbleIsTumbling(tumble))
+            {
+                Plugin.Log.LogDebug("[CarryEscape] tumble ended naturally — clearing state.");
+                ClearState();
+                return;
+            }
+
+            // 2. Timer countdown.
+            _timeRemaining -= Time.deltaTime;
+
+            // 3. Input poll.
+            var input = InputProbe.Sample(ref _lastInputTime);
+            if (input.Struggled)
+            {
+                _strugglePresses++;
+                Plugin.Log.LogDebug($"[CarryEscape] struggle press #{_strugglePresses} (wasAttack={input.WasAttack}, remaining={_timeRemaining:F1}s)");
+            }
+
+            // 4. Damage on attack press.
+            if (input.WasAttack && Plugin.SoloCarryEscapeAttackPressDamage.Value > 0)
+            {
+                ApplyAttackDamage();
+            }
+
+            // 5. Resolution check.
+            if (_timeRemaining <= 0f) ResolveEscape(EscapeReason.TimerExpired);
+            else if (_strugglePresses >= Plugin.SoloCarryEscapeStrugglePresses.Value) ResolveEscape(EscapeReason.StruggleThreshold);
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[CarryEscape] TryOnTick threw: {ex.GetType().Name}: {ex.Message}");
+            ClearState();
+        }
+    }
+
+    private static void ApplyAttackDamage()
+    {
+        if (_currentEnemy == null) return;
+        try
+        {
+            var health = RepoRefs.EnemyHealthRef(_currentEnemy);
+            if (health == null) return;
+            health.Hurt(Plugin.SoloCarryEscapeAttackPressDamage.Value, Vector3.zero);
+            Plugin.Log.LogDebug($"[CarryEscape] applied {Plugin.SoloCarryEscapeAttackPressDamage.Value} damage to {_currentKind}");
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[CarryEscape] ApplyAttackDamage threw: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private static void ResolveEscape(EscapeReason reason)
+    {
+        var kindForLog = _currentKind;
+        var pressesForLog = _strugglePresses;
+        try
+        {
+            ForceLeaveHelpers.ForceLeave(_currentEnemy, _currentKind);
+
+            // Cancel the player's tumble override so they regain control immediately.
+            if (_localPlayer != null)
+            {
+                var t = RepoRefs.AvatarTumble(_localPlayer);
+                if (t != null) t.TumbleOverrideTime(0f);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[CarryEscape] ResolveEscape force-leave threw: {ex.GetType().Name}: {ex.Message}");
+        }
+
+        ClearState();
+        Plugin.Log.LogDebug($"[CarryEscape] escaped: reason={reason}, enemy={kindForLog}, presses={pressesForLog}");
     }
 
     private static void ClearState()
