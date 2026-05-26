@@ -226,3 +226,84 @@ internal static class EnemyKindIdentifier
         return (null, EnemyKind.None);
     }
 }
+
+// Per-kind force-leave helpers. Each one writes the carrier's currentState to its Leave
+// equivalent, nulls the per-enemy player target so the AI doesn't immediately re-acquire,
+// then applies the configured Freeze + DisableChase deaggro window. Mirrors the
+// ForceReleaseSpewer pattern (in SelfRevivePatch.cs) but generalized to all 6 carry enemies.
+internal static class ForceLeaveHelpers
+{
+    public static void ForceLeave(Enemy enemy, EnemyKind kind)
+    {
+        if (enemy == null) return;
+        try
+        {
+            switch (kind)
+            {
+                case EnemyKind.Hidden: ForceHiddenLeave(enemy); break;
+                case EnemyKind.Oogly: ForceOoglyLeave(enemy); break;
+                case EnemyKind.Spinny: ForceSpinnyLeave(enemy); break;
+                case EnemyKind.HeartHuggerGas: ForceHeartHuggerGasLeave(enemy); break;
+                case EnemyKind.Upscream: ForceUpscreamLeave(enemy); break;
+                case EnemyKind.Spewer: ForceSpewerLeave(enemy); break;
+            }
+
+            // Common deaggro pass.
+            var freeze = Plugin.SoloCarryEscapeDeaggroFreezeSeconds.Value;
+            var chaseDisable = Plugin.SoloCarryEscapeDeaggroChaseDisableSeconds.Value;
+            if (freeze > 0f) enemy.Freeze(freeze);
+            if (chaseDisable > 0f) enemy.DisableChase(chaseDisable);
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[CarryEscape] ForceLeave({kind}) threw: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private static void ForceHiddenLeave(Enemy enemy)
+    {
+        var h = enemy.GetComponentInChildren<EnemyHidden>();
+        if (h == null) { Plugin.Log.LogDebug("[CarryEscape] Hidden component not found on enemy"); return; }
+        h.currentState = EnemyHidden.State.Leave;
+        RepoRefs.HiddenPlayerTarget(h) = null;
+    }
+
+    private static void ForceOoglyLeave(Enemy enemy)
+    {
+        var o = enemy.GetComponentInChildren<EnemyOogly>();
+        if (o == null) { Plugin.Log.LogDebug("[CarryEscape] Oogly component not found on enemy"); return; }
+        o.currentState = EnemyOogly.State.Leave;
+        RepoRefs.OoglyGrabbedPlayer(o) = null;
+    }
+
+    private static void ForceSpinnyLeave(Enemy enemy)
+    {
+        var s = enemy.GetComponentInChildren<EnemySpinny>();
+        if (s == null) { Plugin.Log.LogDebug("[CarryEscape] Spinny component not found on enemy"); return; }
+        s.currentState = EnemySpinny.State.Leave;
+        RepoRefs.SpinnyPlayerTarget(s) = null;
+    }
+
+    private static void ForceHeartHuggerGasLeave(Enemy enemy)
+    {
+        var hh = enemy.GetComponentInChildren<EnemyHeartHugger>();
+        if (hh == null) { Plugin.Log.LogDebug("[CarryEscape] HeartHugger component not found"); return; }
+        // Degrow cancels the active gas + Aggro state cleanly per the decompile.
+        hh.currentState = EnemyHeartHugger.State.Degrow;
+    }
+
+    private static void ForceUpscreamLeave(Enemy enemy)
+    {
+        // Best-effort: Upscream's tumble is animation-driven and brief (1.5s).
+        // Force-leaving usually arrives after the tumble already expired. Log + no-op.
+        Plugin.Log.LogDebug("[CarryEscape] ForceUpscreamLeave called — no force-state available (animation-driven tumble); deaggro pass will still apply.");
+    }
+
+    private static void ForceSpewerLeave(Enemy enemy)
+    {
+        var sm = enemy.GetComponentInChildren<EnemySlowMouth>();
+        if (sm == null) { Plugin.Log.LogDebug("[CarryEscape] SlowMouth component not found on enemy"); return; }
+        sm.currentState = EnemySlowMouth.State.Leave;
+        RepoRefs.SlowMouthPlayerTarget(sm) = null;
+    }
+}
