@@ -37,6 +37,27 @@ internal static class RepoRefs
         AccessTools.FieldRefAccess<EnemySlowMouthAttached, EnemySlowMouth>("enemySlowMouth");
     internal static readonly AccessTools.FieldRef<Enemy, int> EnemyTargetViewID =
         AccessTools.FieldRefAccess<Enemy, int>("TargetPlayerViewID");
+
+    internal static readonly AccessTools.FieldRef<EnemyHidden, PlayerAvatar> HiddenPlayerTarget =
+        AccessTools.FieldRefAccess<EnemyHidden, PlayerAvatar>("playerTarget");
+
+    internal static readonly AccessTools.FieldRef<EnemyOogly, PlayerAvatar> OoglyGrabbedPlayer =
+        AccessTools.FieldRefAccess<EnemyOogly, PlayerAvatar>("grabbedPlayer");
+
+    internal static readonly AccessTools.FieldRef<EnemySpinny, PlayerAvatar> SpinnyPlayerTarget =
+        AccessTools.FieldRefAccess<EnemySpinny, PlayerAvatar>("playerTarget");
+
+    internal static readonly AccessTools.FieldRef<EnemySlowMouth, PlayerAvatar> SlowMouthPlayerTarget =
+        AccessTools.FieldRefAccess<EnemySlowMouth, PlayerAvatar>("playerTarget");
+
+    internal static readonly AccessTools.FieldRef<Enemy, EnemyHealth> EnemyHealthRef =
+        AccessTools.FieldRefAccess<Enemy, EnemyHealth>("Health");
+
+    internal static readonly AccessTools.FieldRef<EnemyHeartHuggerGasChecker, System.Collections.Generic.List<PlayerAvatar>> GasCheckerPlayersColliding =
+        AccessTools.FieldRefAccess<EnemyHeartHuggerGasChecker, System.Collections.Generic.List<PlayerAvatar>>("playersColliding");
+
+    internal static readonly AccessTools.FieldRef<EnemyHeartHuggerGasChecker, EnemyHeartHugger> GasCheckerHeartHugger =
+        AccessTools.FieldRefAccess<EnemyHeartHuggerGasChecker, EnemyHeartHugger>("enemyHeartHugger");
 }
 
 public static class FreeChassisGranter
