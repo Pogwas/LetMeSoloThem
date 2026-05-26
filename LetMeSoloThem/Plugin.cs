@@ -50,6 +50,14 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloEnemyDetectionDuo;
     internal static ConfigEntry<float> SoloEnemyDetectionTrio;
     internal static ConfigEntry<float> SoloEnemyDetectionQuad;
+    internal static ConfigEntry<bool> SoloCarryEscapeEnabled;
+    internal static ConfigEntry<bool> SoloCarryEscapeWorksInMultiplayer;
+    internal static ConfigEntry<float> SoloCarryEscapeTimerSeconds;
+    internal static ConfigEntry<int> SoloCarryEscapeStrugglePresses;
+    internal static ConfigEntry<int> SoloCarryEscapeAttackPressDamage;
+    internal static ConfigEntry<float> SoloCarryEscapeDeaggroFreezeSeconds;
+    internal static ConfigEntry<float> SoloCarryEscapeDeaggroChaseDisableSeconds;
+    internal static ConfigEntry<float> SoloCarryEscapeStruggleInputDebounceSeconds;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -229,6 +237,50 @@ public class Plugin : BaseUnityPlugin
             new ConfigDescription(
                 "Detection intensity when 4 or more players are in the run. 1.0 (default) = exact vanilla — the feature no-ops in full lobbies.",
                 new AcceptableValueRange<float>(0f, 1f)));
+
+        SoloCarryEscapeEnabled = Config.Bind(
+            "Solo Carry Escape", "Enabled", true,
+            "Master toggle for Solo Carry Escape. When false, enemies that carry/lockdown the player (Hidden, Oogly, Spinny, HeartHugger gas, Spewer) keep their full vanilla carry duration.");
+
+        SoloCarryEscapeWorksInMultiplayer = Config.Bind(
+            "Solo Carry Escape", "WorksInMultiplayer", false,
+            "When false (default): only fires in solo or when all other players are dead — preserves MP rescue gameplay. When true: fires in all lobbies.");
+
+        SoloCarryEscapeTimerSeconds = Config.Bind(
+            "Solo Carry Escape", "EscapeTimerSeconds", 5.0f,
+            new ConfigDescription(
+                "Hard timer ceiling — even if you do nothing, the carry releases after this many seconds. 5s default is about half of EnemyHidden's vanilla 13s max carry.",
+                new AcceptableValueRange<float>(1f, 30f)));
+
+        SoloCarryEscapeStrugglePresses = Config.Bind(
+            "Solo Carry Escape", "EscapeStrugglePresses", 8,
+            new ConfigDescription(
+                "How many struggle inputs (Space, WASD, or mouse click) needed to escape immediately. Lower = easier escape. Reaching this threshold escapes regardless of timer.",
+                new AcceptableValueRange<int>(1, 50)));
+
+        SoloCarryEscapeAttackPressDamage = Config.Bind(
+            "Solo Carry Escape", "AttackPressDamage", 10,
+            new ConfigDescription(
+                "Damage dealt to the carrying enemy per mouse-click press during carry. 0 = disabled (attack-press counts as struggle but deals no damage). Damage applies via the vanilla EnemyHealth.Hurt path.",
+                new AcceptableValueRange<int>(0, 999)));
+
+        SoloCarryEscapeDeaggroFreezeSeconds = Config.Bind(
+            "Solo Carry Escape", "DeaggroFreezeSeconds", 2.0f,
+            new ConfigDescription(
+                "After escape, the carrier is frozen in place for this many seconds (vanilla Enemy.Freeze). 0 = no freeze.",
+                new AcceptableValueRange<float>(0f, 10f)));
+
+        SoloCarryEscapeDeaggroChaseDisableSeconds = Config.Bind(
+            "Solo Carry Escape", "DeaggroChaseDisableSeconds", 8.0f,
+            new ConfigDescription(
+                "After escape, the carrier's chase AI is disabled for this many seconds (vanilla Enemy.DisableChase). 0 = no chase suppression — carrier may immediately re-engage. Default 8s gives you time to relocate.",
+                new AcceptableValueRange<float>(0f, 60f)));
+
+        SoloCarryEscapeStruggleInputDebounceSeconds = Config.Bind(
+            "Solo Carry Escape", "StruggleInputDebounceSeconds", 0.1f,
+            new ConfigDescription(
+                "Minimum seconds between counted struggle presses. Prevents auto-fire keyboards from completing the escape in one frame.",
+                new AcceptableValueRange<float>(0.01f, 1f)));
 
         _harmony = new Harmony(PluginGuid);
         _harmony.PatchAll();
