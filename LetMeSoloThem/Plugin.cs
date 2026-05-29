@@ -52,7 +52,6 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloEnemyDetectionQuad;
     internal static ConfigEntry<bool> SoloCarryEscapeEnabled;
     internal static ConfigEntry<bool> SoloCarryEscapeWorksInMultiplayer;
-    internal static ConfigEntry<float> SoloCarryEscapeTimerSeconds;
     internal static ConfigEntry<int> SoloCarryEscapeStrugglePresses;
     internal static ConfigEntry<int> SoloCarryEscapeAttackPressDamage;
     internal static ConfigEntry<float> SoloCarryEscapeDeaggroFreezeSeconds;
@@ -246,22 +245,16 @@ public class Plugin : BaseUnityPlugin
             "Solo Carry Escape", "WorksInMultiplayer", false,
             "When false (default): only fires in solo or when all other players are dead — preserves MP rescue gameplay. When true: fires in all lobbies.");
 
-        SoloCarryEscapeTimerSeconds = Config.Bind(
-            "Solo Carry Escape", "EscapeTimerSeconds", 5.0f,
-            new ConfigDescription(
-                "Hard timer ceiling — even if you do nothing, the carry releases after this many seconds. 5s default is about half of EnemyHidden's vanilla 13s max carry.",
-                new AcceptableValueRange<float>(1f, 30f)));
-
         SoloCarryEscapeStrugglePresses = Config.Bind(
             "Solo Carry Escape", "EscapeStrugglePresses", 8,
             new ConfigDescription(
-                "How many struggle inputs (Space, WASD, or mouse click) needed to escape immediately. Lower = easier escape. Reaching this threshold escapes regardless of timer.",
+                "How many struggle inputs (Space, WASD, or mouse click) needed to break free. Lower = easier escape. There is no passive timer — you must actively struggle to escape a carry.",
                 new AcceptableValueRange<int>(1, 50)));
 
         SoloCarryEscapeAttackPressDamage = Config.Bind(
-            "Solo Carry Escape", "AttackPressDamage", 10,
+            "Solo Carry Escape", "AttackPressDamage", 5,
             new ConfigDescription(
-                "Damage dealt to the carrying enemy per mouse-click press during carry. 0 = disabled (attack-press counts as struggle but deals no damage). Damage applies via the vanilla EnemyHealth.Hurt path.",
+                "Damage dealt to the carrying enemy per mouse-click press during carry. 0 = disabled (attack-press counts as struggle but deals no damage). Tuned so mashing to escape (EscapeStrugglePresses clicks) chips the carrier without auto-killing a healthy one. Damage applies via the vanilla EnemyHealth.Hurt path.",
                 new AcceptableValueRange<int>(0, 999)));
 
         SoloCarryEscapeDeaggroFreezeSeconds = Config.Bind(

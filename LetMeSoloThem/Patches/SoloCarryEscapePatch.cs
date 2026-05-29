@@ -15,12 +15,6 @@ internal enum EnemyKind
     Spewer
 }
 
-internal enum EscapeReason
-{
-    TimerExpired,
-    StruggleThreshold
-}
-
 // Solo Carry Escape — break out of enemy lockdown states in solo R.E.P.O. play.
 // Covers EnemyHidden, EnemyOogly, EnemySpinny, EnemyHeartHugger (gas), EnemyUpscream,
 // and mid-carry EnemySlowMouth (Spewer). Hybrid mechanic: hard timer ceiling + struggle
@@ -48,7 +42,8 @@ public static class PlayerTumbleRequestPatch
     }
 
     // Solo-gating: fire in solo, OR when WorksInMultiplayer is on, OR when all other players are dead.
-    private static bool ShouldTrigger()
+    // internal so the poll-based gas detector (CarryEscapeTracker.TryDetectGasCarry) can reuse it.
+    internal static bool ShouldTrigger()
     {
         // Solo check via Photon room count — authoritative, avoids load-in race where
         // SemiFunc.PlayerGetList() may return just 1 while a 2nd client is still joining.
@@ -77,9 +72,9 @@ internal static class CarryEscapeTracker
     private static Enemy _currentEnemy;
     private static EnemyKind _currentKind = EnemyKind.None;
     private static PlayerAvatar _localPlayer;
-    private static float _timeRemaining;
     private static int _strugglePresses;
     private static float _lastInputTime;
+    private static float _lastNoCarrierLogTime = -999f;
 
     private static bool IsArmed => _currentKind != EnemyKind.None;
 
@@ -90,24 +85,84 @@ internal static class CarryEscapeTracker
             var (enemy, kind) = EnemyKindIdentifier.IdentifyCarrier(local);
             if (kind == EnemyKind.None || enemy == null)
             {
-                Plugin.Log.LogDebug("[CarryEscape] OnCarryStart fired but no carry enemy found (likely fall or PhysGrabber tumble) — ignoring.");
+                // TumbleRequest can fire many times per frame during a single fall/tumble.
+                // Debounce this diagnostic so a lone tumble doesn't spam ~40 identical lines.
+                if (Time.time - _lastNoCarrierLogTime >= 1f)
+                {
+                    Plugin.Log.LogDebug("[CarryEscape] OnCarryStart fired but no carry enemy found (likely fall or PhysGrabber tumble) — ignoring.");
+                    _lastNoCarrierLogTime = Time.time;
+                }
                 return;
             }
 
-            _currentEnemy = enemy;
-            _currentKind = kind;
-            _localPlayer = local;
-            _timeRemaining = Plugin.SoloCarryEscapeTimerSeconds.Value;
-            _strugglePresses = 0;
-            _lastInputTime = 0f;
+            // Re-arm dedupe: sustained carries (Oogly ceiling-wrestle, Spewer attach) re-fire
+            // PlayerTumble.TumbleRequest repeatedly while still holding the player. Without this
+            // guard each re-fire reset _timeRemaining back to full, so the timer-escape could
+            // never count down to 0 (the Oogly killed the player this way during playtest).
+            // If we're already tracking THIS SAME enemy instance, keep the original countdown.
+            if (IsArmed && ReferenceEquals(enemy, _currentEnemy)) return;
 
-            Plugin.Log.LogDebug($"[CarryEscape] armed: enemy={kind}, timer={_timeRemaining:F1}s, threshold={Plugin.SoloCarryEscapeStrugglePresses.Value} presses");
+            Arm(enemy, kind, local);
         }
         catch (System.Exception ex)
         {
             Plugin.Log.LogWarning($"[CarryEscape] OnCarryStart threw: {ex.GetType().Name}: {ex.Message}");
             ClearState();
         }
+    }
+
+    // Poll-based HeartHugger gas detection, driven per-frame from SoloGraceHud.Update.
+    // The gas's EnemyHeartHuggerGasChecker calls PlayerTumble.TumbleRequest ONE statement
+    // before adding the player to playersColliding, so the synchronous OnCarryStart hook always
+    // sees an empty list and misses the gas (returns None → "ignoring"). Polling each frame
+    // catches it once playersColliding is populated, decoupling gas detection from that race.
+    public static void TryDetectGasCarry()
+    {
+        if (IsArmed) return;
+        if (!Plugin.SoloCarryEscapeEnabled.Value) return;
+
+        try
+        {
+            // Cheap gate: only scan for gas while the local player is actually tumbling.
+            // A gas-carry always coincides with isTumbling (the gas applies the tumble), so this
+            // skips the per-frame FindObjectsOfType scan on the ~99% of frames with no carry, and
+            // avoids arming off a lingering gas cloud's playersColliding list when the player
+            // isn't actually being carried (which TryOnTick would just clear the next frame).
+            var pc = PlayerController.instance;
+            var local = pc != null ? pc.playerAvatarScript : null;
+            if (local == null || !RepoRefs.AvatarIsLocal(local)) return;
+            var tumble = RepoRefs.AvatarTumble(local);
+            if (tumble == null || !RepoRefs.TumbleIsTumbling(tumble)) return;
+            if (!PlayerTumbleRequestPatch.ShouldTrigger()) return;
+
+            foreach (var gc in UnityEngine.Object.FindObjectsOfType<EnemyHeartHuggerGasChecker>())
+            {
+                if (gc == null) continue;
+                var list = RepoRefs.GasCheckerPlayersColliding(gc);
+                var hh = RepoRefs.GasCheckerHeartHugger(gc);
+                if (list == null || hh == null || !list.Contains(local)) continue;
+                var e = hh.GetComponentInParent<Enemy>();
+                if (e == null) continue;
+                Arm(e, EnemyKind.HeartHuggerGas, local);
+                return;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Plugin.Log.LogWarning($"[CarryEscape] TryDetectGasCarry threw: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    // Shared arming logic for both the event-driven OnCarryStart and the polled gas detector.
+    private static void Arm(Enemy enemy, EnemyKind kind, PlayerAvatar local)
+    {
+        _currentEnemy = enemy;
+        _currentKind = kind;
+        _localPlayer = local;
+        _strugglePresses = 0;
+        _lastInputTime = 0f;
+
+        Plugin.Log.LogDebug($"[CarryEscape] armed: enemy={kind}, threshold={Plugin.SoloCarryEscapeStrugglePresses.Value} presses (struggle to escape)");
     }
 
     public static void TryOnTick()
@@ -126,26 +181,23 @@ internal static class CarryEscapeTracker
                 return;
             }
 
-            // 2. Timer countdown.
-            _timeRemaining -= Time.deltaTime;
-
-            // 3. Input poll.
+            // 2. Input poll.
             var input = InputProbe.Sample(ref _lastInputTime);
             if (input.Struggled)
             {
                 _strugglePresses++;
-                Plugin.Log.LogDebug($"[CarryEscape] struggle press #{_strugglePresses} (wasAttack={input.WasAttack}, remaining={_timeRemaining:F1}s)");
+                Plugin.Log.LogDebug($"[CarryEscape] struggle press #{_strugglePresses}/{Plugin.SoloCarryEscapeStrugglePresses.Value} (wasAttack={input.WasAttack})");
             }
 
-            // 4. Damage on attack press.
+            // 3. Damage on attack press.
             if (input.WasAttack && Plugin.SoloCarryEscapeAttackPressDamage.Value > 0)
             {
                 ApplyAttackDamage();
             }
 
-            // 5. Resolution check.
-            if (_timeRemaining <= 0f) ResolveEscape(EscapeReason.TimerExpired);
-            else if (_strugglePresses >= Plugin.SoloCarryEscapeStrugglePresses.Value) ResolveEscape(EscapeReason.StruggleThreshold);
+            // 4. Resolution — struggle-only. The carry only releases once the player has
+            // actively mashed up to the press threshold (no passive timer escape).
+            if (_strugglePresses >= Plugin.SoloCarryEscapeStrugglePresses.Value) ResolveEscape();
         }
         catch (System.Exception ex)
         {
@@ -170,7 +222,7 @@ internal static class CarryEscapeTracker
         }
     }
 
-    private static void ResolveEscape(EscapeReason reason)
+    private static void ResolveEscape()
     {
         var kindForLog = _currentKind;
         var pressesForLog = _strugglePresses;
@@ -191,7 +243,7 @@ internal static class CarryEscapeTracker
         }
 
         ClearState();
-        Plugin.Log.LogDebug($"[CarryEscape] escaped: reason={reason}, enemy={kindForLog}, presses={pressesForLog}");
+        Plugin.Log.LogDebug($"[CarryEscape] escaped: reason=StruggleThreshold, enemy={kindForLog}, presses={pressesForLog}");
     }
 
     private static void ClearState()
@@ -199,7 +251,6 @@ internal static class CarryEscapeTracker
         _currentEnemy = null;
         _currentKind = EnemyKind.None;
         _localPlayer = null;
-        _timeRemaining = 0f;
         _strugglePresses = 0;
         _lastInputTime = 0f;
     }
