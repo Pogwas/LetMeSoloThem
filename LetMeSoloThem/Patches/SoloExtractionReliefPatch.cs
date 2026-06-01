@@ -31,10 +31,16 @@ public static class SoloExtractionReliefPatch
     // SoloGraceHud calls on the false->true relief transition). Verification aid only.
     private static bool _pingSuppressLogged;
 
+    // TEMP diagnostic: tracks the last extraction-ping state we logged, so we emit one line each time the
+    // StartRoom->PlayerRoom transition is observed during a SetInvestigate call. Lets a playtest see
+    // whether the PlayerRoom phase is ever reached. -1 = sentinel (not yet seen). Remove once confirmed.
+    private static int _lastDiagState = -1;
+
     // Called by SoloGraceHud when relief arms (final extraction reached) so the per-arm ping log resets.
     internal static void OnReliefArmed()
     {
         _pingSuppressLogged = false;
+        _lastDiagState = -1;
     }
 
     // Shared gate: relief is active only when enabled, all extractions are done, and we're solo
@@ -113,7 +119,17 @@ public static class SoloExtractionReliefPatch
             if (__instance == null) return true;
             if (radius > ExtractionPingRangeMax) return true;   // baseline float.MaxValue investigate — leave it
             if (!ReliefActive()) return true;
-            if (ExtractionStateRef(__instance) != EnemyDirector.ExtractionsDoneState.PlayerRoom)
+
+            var state = ExtractionStateRef(__instance);
+            // TEMP diagnostic: log each extraction-ping state the first time we see it during an arm, so a
+            // playtest can tell whether the PlayerRoom phase is ever reached. Remove once confirmed.
+            if ((int)state != _lastDiagState)
+            {
+                _lastDiagState = (int)state;
+                Plugin.Log.LogDebug($"[SoloExtraction] extraction-ping observed in state {state} (radius={radius:F0})");
+            }
+
+            if (state != EnemyDirector.ExtractionsDoneState.PlayerRoom)
                 return true;                                   // StartRoom lure-to-truck — leave it
 
             // PlayerRoom ping — suppress. Log once per arm so a playtest can confirm it actually fired.
