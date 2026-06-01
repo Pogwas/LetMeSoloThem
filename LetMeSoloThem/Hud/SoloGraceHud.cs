@@ -21,6 +21,9 @@ public class SoloGraceHud : MonoBehaviour
     private int _previousChassisCount;
     private float _chassisRevivingRemaining;
     private float _chassisUsedFadeRemaining;
+    private const float ReliefFadeSeconds = 3f;
+    private bool _reliefActive;
+    private float _reliefFadeRemaining;
 
     private void OnDestroy()
     {
@@ -44,6 +47,7 @@ public class SoloGraceHud : MonoBehaviour
             CarryEscapeTracker.TryDetectGasCarry();
             CarryEscapeTracker.TryOnTick();
             TrackChassisTransition();
+            TrackReliefTransition();
             if (shouldLog) ChassisDiagnostic();
         }
         catch (System.Exception ex)
@@ -96,6 +100,23 @@ public class SoloGraceHud : MonoBehaviour
         }
 
         _previousChassisCount = currentCount;
+    }
+
+    private void TrackReliefTransition()
+    {
+        bool active = SoloExtractionReliefPatch.ReliefActive();
+        if (!active && _reliefActive)
+        {
+            // Relief just turned off (e.g. level ended) — start the fade-out.
+            _reliefFadeRemaining = ReliefFadeSeconds;
+        }
+        _reliefActive = active;
+
+        if (_reliefFadeRemaining > 0f)
+        {
+            _reliefFadeRemaining -= Time.deltaTime;
+            if (_reliefFadeRemaining < 0f) _reliefFadeRemaining = 0f;
+        }
     }
 
     private void ChassisDiagnostic()
@@ -185,6 +206,7 @@ public class SoloGraceHud : MonoBehaviour
         EnsureStyle();
         if (_shouldShowGrace) DrawGraceTimer();
         DrawChassisLabel();
+        DrawReliefLabel();
     }
 
     private void EnsureStyle()
@@ -283,6 +305,37 @@ public class SoloGraceHud : MonoBehaviour
 
         _style.normal.textColor = color;
         GUI.Label(chassisRect, text, _style);
+    }
+
+    private void DrawReliefLabel()
+    {
+        string text;
+        Color color;
+
+        if (_reliefActive)
+        {
+            text = "Extraction Relief: Active";
+            color = new Color(0.55f, 0.85f, 1f, 1f);
+        }
+        else if (_reliefFadeRemaining > 0f)
+        {
+            text = "Extraction Relief: Active";
+            float alpha = Mathf.Clamp01(_reliefFadeRemaining / ReliefFadeSeconds);
+            color = new Color(0.55f, 0.85f, 1f, alpha);
+        }
+        else
+        {
+            return;
+        }
+
+        // Third row: grace timer is at y=20, chassis label at y=55, relief at y=90.
+        var rect = new Rect((Screen.width / 2f) - 150f, 90f, 300f, 30f);
+
+        _style.normal.textColor = new Color(0f, 0f, 0f, color.a * 0.85f);
+        GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), text, _style);
+
+        _style.normal.textColor = color;
+        GUI.Label(rect, text, _style);
     }
 
     private void OnChassisGate()
