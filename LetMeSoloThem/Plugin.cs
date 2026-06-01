@@ -57,6 +57,10 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloCarryEscapeDeaggroFreezeSeconds;
     internal static ConfigEntry<float> SoloCarryEscapeDeaggroChaseDisableSeconds;
     internal static ConfigEntry<float> SoloCarryEscapeStruggleInputDebounceSeconds;
+    internal static ConfigEntry<bool> SoloExtractionEnabled;
+    internal static ConfigEntry<int> SoloExtractionRespawnFloorSeconds;
+    internal static ConfigEntry<bool> SoloExtractionSuppressPings;
+    internal static ConfigEntry<bool> SoloExtractionWorksInMultiplayer;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -274,6 +278,24 @@ public class Plugin : BaseUnityPlugin
             new ConfigDescription(
                 "Minimum seconds between counted struggle presses. Prevents auto-fire keyboards from completing the escape in one frame.",
                 new AcceptableValueRange<float>(0.01f, 1f)));
+
+        SoloExtractionEnabled = Config.Bind(
+            "Solo Extraction Relief", "Enabled", true,
+            "Master toggle for Solo Extraction Relief. When false, the post-final-extraction surge runs at full vanilla intensity (near-instant respawns + enemies pinged to your room).");
+
+        SoloExtractionRespawnFloorSeconds = Config.Bind(
+            "Solo Extraction Relief", "RespawnFloorSeconds", 10,
+            new ConfigDescription(
+                "Minimum seconds between enemy respawns during the final extraction. Vanilla collapses respawn timers to ~1s once all extractions are done; this raises that floor so the map re-floods at a survivable pace. 10 (default) matches the community-requested respawn timer. 0 = vanilla (no floor). Solo only unless WorksInMultiplayer.",
+                new AcceptableValueRange<int>(0, 60)));
+
+        SoloExtractionSuppressPings = Config.Bind(
+            "Solo Extraction Relief", "SuppressPlayerRoomPings", true,
+            "When true (default), suppress the repeating 'pathfind directly to YOUR room' broadcasts that vanilla fires at every nearby enemy after final extraction. The initial ~10s lure that pulls enemies toward the truck/start room is left intact, so the escape is still tense — just not omniscient. False = vanilla pinging.");
+
+        SoloExtractionWorksInMultiplayer = Config.Bind(
+            "Solo Extraction Relief", "WorksInMultiplayer", false,
+            "When false (default), relief only applies in true solo (player count <= 1). When true, the host (master client) also gets relief in MP lobbies.");
 
         _harmony = new Harmony(PluginGuid);
         _harmony.PatchAll();
