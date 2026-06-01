@@ -13,7 +13,7 @@ namespace LetMeSoloThem.Patches;
 public static class SoloExtractionReliefPatch
 {
     // Internal vanilla fields are not accessible cross-assembly — read them via FieldRef
-    // (same approach as EnemyDirectorPatch.SpawnIdlePauseTimerRef).
+    // (same approach as EnemyDirectorStartPatch.SpawnIdlePauseTimerRef).
     private static readonly AccessTools.FieldRef<RoundDirector, bool> AllExtractionsDoneRef =
         AccessTools.FieldRefAccess<RoundDirector, bool>("allExtractionPointsCompleted");
 
