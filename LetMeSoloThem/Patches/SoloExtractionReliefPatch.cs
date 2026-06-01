@@ -17,6 +17,16 @@ public static class SoloExtractionReliefPatch
     private static readonly AccessTools.FieldRef<RoundDirector, bool> AllExtractionsDoneRef =
         AccessTools.FieldRefAccess<RoundDirector, bool>("allExtractionPointsCompleted");
 
+    // EnemyDirector.extractionsDoneState is internal; the enum type EnemyDirector.ExtractionsDoneState
+    // is public, so we can name it and read the field via FieldRef.
+    private static readonly AccessTools.FieldRef<EnemyDirector, EnemyDirector.ExtractionsDoneState> ExtractionStateRef =
+        AccessTools.FieldRefAccess<EnemyDirector, EnemyDirector.ExtractionsDoneState>("extractionsDoneState");
+
+    // The extraction pings (StartRoom + PlayerRoom) use range 100f; the baseline EnemyDirector
+    // investigate (enemyActionAmount overflow) uses float.MaxValue. Anything at/under this threshold is
+    // an extraction ping; we only suppress those, and only in the PlayerRoom phase.
+    private const float ExtractionPingRangeMax = 150f;
+
     // Shared gate: relief is active only when enabled, all extractions are done, and we're solo
     // (or WorksInMultiplayer + host). Returns false rather than throwing if singletons aren't ready.
     internal static bool ReliefActive()
@@ -76,6 +86,32 @@ public static class SoloExtractionReliefPatch
         catch (Exception ex)
         {
             Plugin.Log.LogWarning($"[SoloExtraction] respawn-floor postfix threw: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    // Lever 2: suppress the repeating PlayerRoom pings (the "pathfind to YOUR room" broadcasts) while
+    // keeping the StartRoom lure-to-truck and the baseline (float.MaxValue) investigate. Patched by
+    // string name because SetInvestigate's accessibility is not guaranteed public. Returning false
+    // skips the original.
+    [HarmonyPatch(typeof(EnemyDirector), "SetInvestigate")]
+    [HarmonyPrefix]
+    public static bool SetInvestigatePrefix(EnemyDirector __instance, float radius)
+    {
+        try
+        {
+            if (!Plugin.SoloExtractionSuppressPings.Value) return true;
+            if (__instance == null) return true;
+            if (radius > ExtractionPingRangeMax) return true;   // baseline float.MaxValue investigate — leave it
+            if (!ReliefActive()) return true;
+            if (ExtractionStateRef(__instance) != EnemyDirector.ExtractionsDoneState.PlayerRoom)
+                return true;                                   // StartRoom lure-to-truck — leave it
+
+            return false;   // PlayerRoom ping — suppress
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.LogWarning($"[SoloExtraction] SetInvestigate prefix threw: {ex.GetType().Name}: {ex.Message}");
+            return true;    // on any error, let vanilla run
         }
     }
 }
