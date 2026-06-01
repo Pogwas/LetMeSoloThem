@@ -105,10 +105,20 @@ public class SoloGraceHud : MonoBehaviour
     private void TrackReliefTransition()
     {
         bool active = SoloExtractionReliefPatch.ReliefActive();
-        if (!active && _reliefActive)
+        if (active && !_reliefActive)
+        {
+            // Relief just armed (final extraction reached, solo-gated). Reset the per-arm ping log and
+            // emit a one-time marker so a playtest can confirm relief engaged.
+            SoloExtractionReliefPatch.OnReliefArmed();
+            Plugin.Log.LogDebug(
+                $"[SoloExtraction] ARMED — final-extraction relief active " +
+                $"(floor={Plugin.SoloExtractionRespawnFloorSeconds.Value}s, suppressPings={Plugin.SoloExtractionSuppressPings.Value})");
+        }
+        else if (!active && _reliefActive)
         {
             // Relief just turned off (e.g. level ended) — start the fade-out.
             _reliefFadeRemaining = ReliefFadeSeconds;
+            Plugin.Log.LogDebug("[SoloExtraction] DISARMED — relief ended (left level / extraction state reset)");
         }
         _reliefActive = active;
 

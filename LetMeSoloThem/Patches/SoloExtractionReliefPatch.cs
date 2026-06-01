@@ -27,6 +27,16 @@ public static class SoloExtractionReliefPatch
     // an extraction ping; we only suppress those, and only in the PlayerRoom phase.
     private const float ExtractionPingRangeMax = 150f;
 
+    // Latched so the "first ping suppressed" debug fires once per arm (reset by OnReliefArmed, which
+    // SoloGraceHud calls on the false->true relief transition). Verification aid only.
+    private static bool _pingSuppressLogged;
+
+    // Called by SoloGraceHud when relief arms (final extraction reached) so the per-arm ping log resets.
+    internal static void OnReliefArmed()
+    {
+        _pingSuppressLogged = false;
+    }
+
     // Shared gate: relief is active only when enabled, all extractions are done, and we're solo
     // (or WorksInMultiplayer + host). Returns false rather than throwing if singletons aren't ready.
     internal static bool ReliefActive()
@@ -106,7 +116,13 @@ public static class SoloExtractionReliefPatch
             if (ExtractionStateRef(__instance) != EnemyDirector.ExtractionsDoneState.PlayerRoom)
                 return true;                                   // StartRoom lure-to-truck — leave it
 
-            return false;   // PlayerRoom ping — suppress
+            // PlayerRoom ping — suppress. Log once per arm so a playtest can confirm it actually fired.
+            if (!_pingSuppressLogged)
+            {
+                _pingSuppressLogged = true;
+                Plugin.Log.LogDebug("[SoloExtraction] suppressing PlayerRoom investigate ping(s) — first this arm");
+            }
+            return false;
         }
         catch (Exception ex)
         {
