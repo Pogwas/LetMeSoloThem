@@ -110,9 +110,7 @@ public class SoloGraceHud : MonoBehaviour
             // Relief just armed (final extraction reached, solo-gated). Reset the per-arm ping log and
             // emit a one-time marker so a playtest can confirm relief engaged.
             SoloExtractionReliefPatch.OnReliefArmed();
-            Plugin.Log.LogDebug(
-                $"[SoloExtraction] ARMED — final-extraction relief active " +
-                $"(floor={Plugin.SoloExtractionRespawnFloorSeconds.Value}s, suppressPings={Plugin.SoloExtractionSuppressPings.Value})");
+            Plugin.Log.LogDebug("[SoloExtraction] ARMED — final-extraction relief active (suppressing PlayerRoom pings)");
         }
         else if (!active && _reliefActive)
         {

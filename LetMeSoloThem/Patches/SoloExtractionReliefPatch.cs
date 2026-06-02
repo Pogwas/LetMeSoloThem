@@ -3,18 +3,19 @@ using HarmonyLib;
 
 namespace LetMeSoloThem.Patches;
 
-// Solo Extraction Relief: solo-gated easing of the post-final-extraction monster surge.
-// Once RoundDirector.allExtractionPointsCompleted is true, vanilla EnemyDirector.Update() (1) forces
-// enemy respawn timers toward ~1s and (2) repeatedly pings the player's room to every nearby enemy.
-// This file softens both: two EnemyParent Postfixes enforce a respawn-time floor (Task 2), and one
-// EnemyDirector.SetInvestigate Prefix drops the "PlayerRoom" pings while keeping the StartRoom
-// lure-to-truck (Task 3). All gated on ReliefActive(). Host-authoritative (solo = host); no RPC.
+// Solo Extraction Relief: solo-gated easing of the post-final-extraction monster swarm.
+// Once RoundDirector.allExtractionPointsCompleted is true, vanilla EnemyDirector.Update() repeatedly
+// "pings" the player's current room to every nearby enemy (a 100f pathfind broadcast), herding the
+// whole map onto the lone player as they escape to the truck. This suppresses that omniscient
+// "pathfind to YOUR room" broadcast while leaving intact: the initial ~10s StartRoom lure toward the
+// truck, the baseline (float.MaxValue) investigate, and ALL noise reactions (gunshots, dropped/bumped
+// objects, the extraction point) — so enemies still hear you, they just aren't magically herded onto
+// your exact location. Gated on ReliefActive(). Host-authoritative (solo = host); no RPC.
 // Auto-registered by Plugin.Awake's _harmony.PatchAll().
 //
 // NOTE: the bare [HarmonyPatch] on the class is REQUIRED. PatchAll() only discovers classes annotated
-// with [HarmonyPatch]; without it, the per-method [HarmonyPatch(...)] attributes below are silently
-// skipped (no error) and none of the patches apply. This class targets three different methods, so it
-// can't use a single typed class-level attribute — the bare marker + per-method targets is the pattern.
+// with [HarmonyPatch]; without it, the per-method [HarmonyPatch(...)] attribute below is silently
+// skipped (no error) and the patch never applies.
 [HarmonyPatch]
 public static class SoloExtractionReliefPatch
 {
@@ -28,35 +29,19 @@ public static class SoloExtractionReliefPatch
     private static readonly AccessTools.FieldRef<EnemyDirector, EnemyDirector.ExtractionsDoneState> ExtractionStateRef =
         AccessTools.FieldRefAccess<EnemyDirector, EnemyDirector.ExtractionsDoneState>("extractionsDoneState");
 
-    // TEMP diagnostic helper: EnemyParent.Spawned is internal — read it to see if the floor is being
-    // applied to a despawned (relevant) vs spawned (irrelevant) enemy. Remove with the diagnostic.
-    private static readonly AccessTools.FieldRef<EnemyParent, bool> EnemyParentSpawnedRef =
-        AccessTools.FieldRefAccess<EnemyParent, bool>("Spawned");
-
     // The extraction pings (StartRoom + PlayerRoom) use range 100f; the baseline EnemyDirector
-    // investigate (enemyActionAmount overflow) uses float.MaxValue. Anything at/under this threshold is
-    // an extraction ping; we only suppress those, and only in the PlayerRoom phase.
+    // investigate (enemyActionAmount overflow) uses float.MaxValue. We only suppress the PlayerRoom
+    // ping, so anything above this threshold (the baseline) is left alone.
     private const float ExtractionPingRangeMax = 150f;
 
     // Latched so the "first ping suppressed" debug fires once per arm (reset by OnReliefArmed, which
     // SoloGraceHud calls on the false->true relief transition). Verification aid only.
     private static bool _pingSuppressLogged;
 
-    // TEMP diagnostic: tracks the last extraction-ping state we logged, so we emit one line each time the
-    // StartRoom->PlayerRoom transition is observed during a SetInvestigate call. Lets a playtest see
-    // whether the PlayerRoom phase is ever reached. -1 = sentinel (not yet seen). Remove once confirmed.
-    private static int _lastDiagState = -1;
-
-    // TEMP diagnostic: bounded count of respawn-floor evaluations logged per arm (so we can see whether
-    // the postfixes run during the surge and what DespawnedTimer values they see). Remove once confirmed.
-    private static int _floorDiagCount;
-
     // Called by SoloGraceHud when relief arms (final extraction reached) so the per-arm ping log resets.
     internal static void OnReliefArmed()
     {
         _pingSuppressLogged = false;
-        _lastDiagState = -1;
-        _floorDiagCount = 0;
     }
 
     // Shared gate: relief is active only when enabled, all extractions are done, and we're solo
@@ -82,56 +67,7 @@ public static class SoloExtractionReliefPatch
         }
     }
 
-    // Lever 1a: catch the EnemyDirector "respawn now" command (DespawnedTimerSet(0f)) and raise it to
-    // the configured floor.
-    [HarmonyPatch(typeof(EnemyParent), nameof(EnemyParent.DespawnedTimerSet))]
-    [HarmonyPostfix]
-    public static void DespawnedTimerSetPostfix(EnemyParent __instance)
-    {
-        ApplyRespawnFloor(__instance);
-    }
-
-    // Lever 1b: catch the despawnedDecreaseMultiplier=0 collapse-to-1s path. Runs after vanilla
-    // computes and clamps DespawnedTimer (including the *=3f valuable-dropper path).
-    [HarmonyPatch(typeof(EnemyParent), nameof(EnemyParent.Despawn))]
-    [HarmonyPostfix]
-    public static void DespawnPostfix(EnemyParent __instance)
-    {
-        ApplyRespawnFloor(__instance);
-    }
-
-    // DespawnedTimer (public float on EnemyParent) is only consumed while the enemy is despawned, so
-    // clamping it here is safe regardless of Spawned state. No log — these fire per enemy per respawn
-    // cycle and would spam (quiet-mode policy).
-    private static void ApplyRespawnFloor(EnemyParent enemyParent)
-    {
-        try
-        {
-            int floor = Plugin.SoloExtractionRespawnFloorSeconds.Value;
-            if (floor <= 0) return;          // lever disabled
-            if (enemyParent == null) return;
-            if (!ReliefActive()) return;
-
-            float before = enemyParent.DespawnedTimer;
-            if (before < floor)
-                enemyParent.DespawnedTimer = floor;
-
-            // TEMP diagnostic: bounded per-arm log of floor activity to diagnose fast respawns. Shows
-            // whether the postfix runs during the surge and the before/after DespawnedTimer.
-            if (_floorDiagCount < 15)
-            {
-                _floorDiagCount++;
-                Plugin.Log.LogDebug($"[SoloExtraction] respawn-floor: DespawnedTimer {before:F2} -> {enemyParent.DespawnedTimer:F2} (floor={floor}, spawned={EnemyParentSpawnedRef(enemyParent)})");
-            }
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.LogWarning($"[SoloExtraction] respawn-floor postfix threw: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
-    // Lever 2: suppress the repeating PlayerRoom pings (the "pathfind to YOUR room" broadcasts) while
-    // keeping the StartRoom lure-to-truck and the baseline (float.MaxValue) investigate. Patched by
+    // Suppress the repeating PlayerRoom pings (the "pathfind to YOUR room" broadcasts). Patched by
     // string name because SetInvestigate's accessibility is not guaranteed public. Returning false
     // skips the original.
     [HarmonyPatch(typeof(EnemyDirector), "SetInvestigate")]
@@ -140,7 +76,6 @@ public static class SoloExtractionReliefPatch
     {
         try
         {
-            if (!Plugin.SoloExtractionSuppressPings.Value) return true;
             if (__instance == null) return true;
             // Only EnemyDirector's deliberate herding pings (StartRoom/PlayerRoom/baseline) pass
             // pathfindOnly=true. Every NOISE reaction — gunshots (ItemGun), dropped/bumped objects
@@ -150,20 +85,10 @@ public static class SoloExtractionReliefPatch
             if (!pathfindOnly) return true;
             if (radius > ExtractionPingRangeMax) return true;   // baseline float.MaxValue investigate — leave it
             if (!ReliefActive()) return true;
-
-            var state = ExtractionStateRef(__instance);
-            // TEMP diagnostic: log each extraction-ping state the first time we see it during an arm, so a
-            // playtest can tell whether the PlayerRoom phase is ever reached. Remove once confirmed.
-            if ((int)state != _lastDiagState)
-            {
-                _lastDiagState = (int)state;
-                Plugin.Log.LogDebug($"[SoloExtraction] extraction-ping observed in state {state} (radius={radius:F0})");
-            }
-
-            if (state != EnemyDirector.ExtractionsDoneState.PlayerRoom)
+            if (ExtractionStateRef(__instance) != EnemyDirector.ExtractionsDoneState.PlayerRoom)
                 return true;                                   // StartRoom lure-to-truck — leave it
 
-            // PlayerRoom ping — suppress. Log once per arm so a playtest can confirm it actually fired.
+            // PlayerRoom ping — suppress. Log once per arm so a playtest can confirm it fired.
             if (!_pingSuppressLogged)
             {
                 _pingSuppressLogged = true;

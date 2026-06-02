@@ -58,8 +58,6 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloCarryEscapeDeaggroChaseDisableSeconds;
     internal static ConfigEntry<float> SoloCarryEscapeStruggleInputDebounceSeconds;
     internal static ConfigEntry<bool> SoloExtractionEnabled;
-    internal static ConfigEntry<int> SoloExtractionRespawnFloorSeconds;
-    internal static ConfigEntry<bool> SoloExtractionSuppressPings;
     internal static ConfigEntry<bool> SoloExtractionWorksInMultiplayer;
 
     private Harmony _harmony;
@@ -281,17 +279,7 @@ public class Plugin : BaseUnityPlugin
 
         SoloExtractionEnabled = Config.Bind(
             "Solo Extraction Relief", "Enabled", true,
-            "Master toggle for Solo Extraction Relief. When false, the post-final-extraction surge runs at full vanilla intensity (near-instant respawns + enemies pinged to your room).");
-
-        SoloExtractionRespawnFloorSeconds = Config.Bind(
-            "Solo Extraction Relief", "RespawnFloorSeconds", 10,
-            new ConfigDescription(
-                "Minimum seconds between enemy respawns during the final extraction. Vanilla collapses respawn timers to ~1s once all extractions are done; this raises that floor so the map re-floods at a survivable pace. 10 (default) matches the community-requested respawn timer. 0 = vanilla (no floor). Solo only unless WorksInMultiplayer.",
-                new AcceptableValueRange<int>(0, 60)));
-
-        SoloExtractionSuppressPings = Config.Bind(
-            "Solo Extraction Relief", "SuppressPlayerRoomPings", true,
-            "When true (default), suppress the repeating 'pathfind directly to YOUR room' broadcasts that vanilla fires at every nearby enemy after final extraction. The initial ~10s lure that pulls enemies toward the truck/start room is left intact, so the escape is still tense — just not omniscient. False = vanilla pinging.");
+            "Master toggle for Solo Extraction Relief. When true (default), suppress the repeating 'pathfind directly to YOUR room' broadcasts that vanilla fires at every nearby enemy after the FINAL extraction — so enemies stop being omnisciently herded onto a lone player during the escape to the truck. The initial ~10s lure that pulls enemies toward the truck/start room is left intact, and enemies still react to your NOISE (gunshots, dropped/bumped loot), so the escape stays tense — it just isn't omniscient. False = full vanilla pinging.");
 
         SoloExtractionWorksInMultiplayer = Config.Bind(
             "Solo Extraction Relief", "WorksInMultiplayer", false,
