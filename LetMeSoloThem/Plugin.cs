@@ -296,9 +296,7 @@ public class Plugin : BaseUnityPlugin
 
         SoloCartGuardOnlyWhenAway = Config.Bind(
             "Solo Cart Guard", "OnlyWhenAway", true,
-            new ConfigDescription(
-                "When true (default), loot is only protected from enemies while you are FARTHER than AwayDistance from it — so when you're standing right there you defend it yourself (vanilla). When false, loot is protected from enemies the whole time you're solo, regardless of where you are.",
-                null));
+            "When true (default), loot is only protected from enemies while you are FARTHER than AwayDistance from it — so when you're standing right there you defend it yourself (vanilla). When false, loot is protected from enemies the whole time you're solo, regardless of where you are.");
 
         SoloCartGuardAwayDistance = Config.Bind(
             "Solo Cart Guard", "AwayDistance", 6f,
