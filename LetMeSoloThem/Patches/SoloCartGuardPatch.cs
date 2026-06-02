@@ -7,8 +7,8 @@ namespace LetMeSoloThem.Patches;
 // Solo Cart Guard: stops enemies from damaging OR shoving the solo player's valuables while the player
 // is away and can't defend them. Two enemy-agnostic seams:
 //   1. HurtCollider.PhysObjectHurt prefix — the deliberate-attack seam. Skipping it for an enemy-owned
-//      collider hitting a guarded valuable stops the break impulse (no value loss/destroy) AND the
-//      knockback force (enemies can't shove your loot around) in one place.
+//      collider hitting a guarded valuable stops that attack's value loss / break (it also happens to skip
+//      the attack's knockback, but that is not advertised — incidental body-bumps can still nudge loot).
 //   2. PhysGrabObjectImpactDetector.Break prefix — catches enemy value-loss that does NOT go through (1),
 //      notably an enemy physically ramming/body-checking loot (EnemyRigidbody collision sets a break
 //      impulse + PhysGrabObject.enemyInteractTimer directly). Gated on PhysGrabObject.enemyInteractTimer,
@@ -44,7 +44,7 @@ public static class SoloCartGuardPatch
     // cart). While present you're defending it yourself, so protection powers down over LingerSeconds then
     // turns OFF. While away from the cart/loot, protection is ON (Active).
     private const float NearScanInterval = 0.25f;
-    private const float NearHysteresis = 1.5f; // extra meters past CartTouchDistance before you count as away
+    private const float NearHysteresis = 0.5f; // small buffer past CartTouchDistance before you count as away — kept tight so leaving flips to Powering Up right away (not mid-countdown)
     private static bool _protectByDistance = true;
     private static float _lingerRemaining;
     private static bool _present;            // right at the cart/loot (small radius, with hysteresis)
@@ -276,7 +276,7 @@ public static class SoloCartGuardPatch
             if (!_suppressLogged)
             {
                 _suppressLogged = true;
-                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy attack on valuable (no damage, no knockback) — first this arm");
+                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy attack on valuable (no damage) — first this arm");
             }
             return false; // skip: no break impulse, no force/torque, no destroy-launch, no enemyInteractionTimer
         }

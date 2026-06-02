@@ -293,7 +293,7 @@ public class Plugin : BaseUnityPlugin
 
         SoloCartGuardEnabled = Config.Bind(
             "Solo Cart Guard", "Enabled", true,
-            "Master toggle for Solo Cart Guard. When true (default), enemies cannot destroy or chip the value of your valuables while the guard conditions are met (see OnlyWhenAway). Enemies can still shove/knock your loot around — they just can't damage it. Your own drops, throws, and bumps are unaffected. False = full vanilla.");
+            "Master toggle for Solo Cart Guard. When true (default), enemies cannot destroy or chip the value of your valuables while the guard conditions are met (see OnlyWhenAway). Your own drops, throws, and bumps are unaffected. False = full vanilla.");
 
         SoloCartGuardOnlyWhenAway = Config.Bind(
             "Solo Cart Guard", "OnlyWhenAway", true,
