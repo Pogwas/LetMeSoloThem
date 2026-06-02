@@ -263,6 +263,7 @@ public class SoloGraceHud : MonoBehaviour
                 fontSize = desiredFontSize,
                 alignment = TextAnchor.MiddleCenter,
                 fontStyle = FontStyle.Bold,
+                wordWrap = false, // keep each HUD label on one line (longer ones like "Powering Down" wrapped)
             };
         }
     }
@@ -411,8 +412,8 @@ public class SoloGraceHud : MonoBehaviour
         }
         else if (nearMode)
         {
-            text = "Cart Guard: Off";
-            color = new Color(1f, 0.45f, 0.45f, 1f);
+            // Off (present, linger elapsed): hide the label entirely.
+            return;
         }
         else
         {
@@ -420,8 +421,9 @@ public class SoloGraceHud : MonoBehaviour
             color = new Color(0.55f, 0.85f, 1f, 1f);
         }
 
-        // Fourth row: grace y=20, chassis y=55, relief y=90, cart guard y=120.
-        var rect = new Rect((Screen.width / 2f) - 150f, 120f, 300f, 30f);
+        // Fourth row (grace y=20, chassis y=55, relief y=90, cart guard y=120). Wider than the others so the
+        // longer "Powering Down: Ns" text doesn't clip; still centered on screen.
+        var rect = new Rect((Screen.width / 2f) - 260f, 120f, 520f, 30f);
 
         _style.normal.textColor = new Color(0f, 0f, 0f, color.a * 0.85f);
         GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), text, _style);
