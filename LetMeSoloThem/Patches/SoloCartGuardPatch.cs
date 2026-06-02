@@ -49,6 +49,7 @@ public static class SoloCartGuardPatch
     private static bool _protectByDistance = true;
     private static float _lingerRemaining;
     private static bool _present;            // right at the cart/loot (small radius, with hysteresis)
+    private static bool _hasLeftSinceArm;    // left the cart since arming? (gates the "Powering Down" countdown)
     private static float _nearScanTimer;
 
     // Per-level latch: the guard stays OFF until the local player has reached their cart at least once this
@@ -75,6 +76,7 @@ public static class SoloCartGuardPatch
                 _protectByDistance = true;
                 _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
                 _present = false;
+                _hasLeftSinceArm = false;
                 return;
             }
 
@@ -112,12 +114,22 @@ public static class SoloCartGuardPatch
                 }
             }
 
-            if (_present)
+            // Mark that you've left once you're no longer present (only after arming). This gates the
+            // "Powering Down" countdown: the FIRST time at the cart this level there's no countdown (the
+            // guard never really turned on yet) — it just goes straight to Off. The countdown only plays
+            // when you RETURN after having been away.
+            if (_cartTouchedThisLevel && !_present) _hasLeftSinceArm = true;
+
+            if (_present && _hasLeftSinceArm)
             {
-                // At the cart (loading/pushing): power down over the linger window, then hand defense
-                // back to you (off).
+                // Returned to the cart: power down over the linger window, then hand defense back (off).
                 if (_lingerRemaining > 0f) { _lingerRemaining -= dt; _protectByDistance = true; }
                 else _protectByDistance = false;
+            }
+            else if (_present)
+            {
+                // First arrival at the cart this level: straight to Off, no countdown.
+                _protectByDistance = false;
             }
             else
             {
