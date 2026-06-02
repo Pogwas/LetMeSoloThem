@@ -45,6 +45,7 @@ public static class SoloCartGuardPatch
     // protection stays on for LingerSeconds before handing defense back to you — so nothing gets smashed
     // in the instant you arrive while enemies are mid-swing.
     private const float NearScanInterval = 0.25f;
+    private const float NearHysteresis = 2f; // extra meters you must move past AwayDistance to count as "away"
     private static bool _protectByDistance = true;
     private static float _lingerRemaining;
     private static bool _nearCached;
@@ -95,7 +96,21 @@ public static class SoloCartGuardPatch
                 _nearCached = false;
                 return;
             }
-            if (doScan) _nearCached = LocalPlayerNearLoot();
+            if (doScan)
+            {
+                float dsq = NearestPresentDistanceSq();
+                if (dsq != float.MaxValue)
+                {
+                    float away = Plugin.SoloCartGuardAwayDistance.Value;
+                    float nearSq = away * away;
+                    float far = away + NearHysteresis;
+                    float farSq = far * far;
+                    // Hysteresis: flip to "near" within AwayDistance, but only back to "away" once clearly
+                    // beyond it — stops the on/off flicker when you hover near the boundary (e.g. pushing).
+                    if (_nearCached) { if (dsq > farSq) _nearCached = false; }
+                    else if (dsq <= nearSq) _nearCached = true;
+                }
+            }
             if (!_nearCached)
             {
                 // Away from loot: protected, and keep the linger window topped up for when you return.
@@ -136,31 +151,42 @@ public static class SoloCartGuardPatch
         _suppressLogged = false;
     }
 
-    // HUD helper: is the local player currently within AwayDistance of ANY valuable? Used only to show
-    // "Standby" on the HUD while you're tending your loot (protection paused). Approximate — keys off the
-    // nearest valuable, not per-protected-item. Scans the scene, so the caller MUST throttle it. Returns
-    // false on uncertainty.
-    internal static bool LocalPlayerNearLoot()
+    // Squared distance from the local player to the nearest "present" anchor — any valuable OR any cart.
+    // Including carts keeps the state stable while you PUSH the cart (you're always right next to it).
+    // Returns float.MaxValue if nothing is found / on uncertainty, so the caller can ignore that sample
+    // (avoids a transient empty scan flipping the state). Scans the scene, so the caller MUST throttle it.
+    private static float NearestPresentDistanceSq()
     {
         try
         {
             var pc = PlayerController.instance;
-            if (pc == null || pc.playerAvatarScript == null) return false;
+            if (pc == null || pc.playerAvatarScript == null) return float.MaxValue;
             Vector3 p = pc.playerAvatarScript.transform.position;
-            float away = Plugin.SoloCartGuardAwayDistance.Value;
-            float awaySq = away * away;
+            float best = float.MaxValue;
+
             var valuables = UnityEngine.Object.FindObjectsOfType<ValuableObject>();
             for (int i = 0; i < valuables.Length; i++)
             {
                 var v = valuables[i];
                 if (v == null) continue;
-                if ((v.transform.position - p).sqrMagnitude <= awaySq) return true;
+                float d = (v.transform.position - p).sqrMagnitude;
+                if (d < best) best = d;
             }
-            return false;
+
+            var carts = UnityEngine.Object.FindObjectsOfType<PhysGrabCart>();
+            for (int i = 0; i < carts.Length; i++)
+            {
+                var c = carts[i];
+                if (c == null) continue;
+                float d = (c.transform.position - p).sqrMagnitude;
+                if (d < best) best = d;
+            }
+
+            return best;
         }
         catch
         {
-            return false;
+            return float.MaxValue;
         }
     }
 
