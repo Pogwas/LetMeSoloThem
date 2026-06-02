@@ -34,6 +34,10 @@ public static class SoloCartGuardPatch
     // Reset each new level by OnGuardArmed (called from SoloGraceHud's disarmed->armed transition).
     private static bool _suppressLogged;
 
+    // Set true each time BreakPrefix actually suppresses an enemy break; the HUD consumes it (clears it)
+    // to flash a "Blocked!" pulse so the player sees the guard working in the moment.
+    internal static bool SuppressionPulse;
+
     // True in true-solo, or (when WorksInMultiplayer) when we're the authoritative host.
     // A null player list = offline singleplayer session, treated as solo.
     private static bool IsSoloOrAuthorizedHost()
@@ -48,6 +52,34 @@ public static class SoloCartGuardPatch
     internal static void OnGuardArmed()
     {
         _suppressLogged = false;
+    }
+
+    // HUD helper: is the local player currently within AwayDistance of ANY valuable? Used only to show
+    // "Standby" on the HUD while you're tending your loot (protection paused). Approximate — keys off the
+    // nearest valuable, not per-protected-item. Scans the scene, so the caller MUST throttle it. Returns
+    // false on uncertainty.
+    internal static bool LocalPlayerNearLoot()
+    {
+        try
+        {
+            var pc = PlayerController.instance;
+            if (pc == null || pc.playerAvatarScript == null) return false;
+            Vector3 p = pc.playerAvatarScript.transform.position;
+            float away = Plugin.SoloCartGuardAwayDistance.Value;
+            float awaySq = away * away;
+            var valuables = UnityEngine.Object.FindObjectsOfType<ValuableObject>();
+            for (int i = 0; i < valuables.Length; i++)
+            {
+                var v = valuables[i];
+                if (v == null) continue;
+                if ((v.transform.position - p).sqrMagnitude <= awaySq) return true;
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     // True when the guard should suppress THIS break. Returns false (vanilla) on any uncertainty.
@@ -114,6 +146,7 @@ public static class SoloCartGuardPatch
         {
             if (!GuardActive(__instance)) return true;
 
+            SuppressionPulse = true; // HUD reads this to flash "Blocked!"
             if (!_suppressLogged)
             {
                 _suppressLogged = true;

@@ -25,6 +25,14 @@ public class SoloGraceHud : MonoBehaviour
     private bool _reliefActive;
     private float _reliefFadeRemaining;
     private bool _cartGuardArmed;
+    private const float CartGuardFlashSeconds = 1.5f;
+    private const float CartGuardStandbyBlinkSeconds = 1.5f;
+    private const float CartGuardNearScanInterval = 0.3f;
+    private float _cartGuardFlashRemaining;
+    private float _cartGuardStandbyBlinkRemaining;
+    private float _cartGuardNearScanTimer;
+    private bool _cartGuardNear;
+    private bool _cartGuardWasNear;
 
     private void OnDestroy()
     {
@@ -143,6 +151,45 @@ public class SoloGraceHud : MonoBehaviour
             Plugin.Log.LogDebug("[SoloCartGuard] DISARMED — cart guard inactive (left level / not solo)");
         }
         _cartGuardArmed = armed;
+
+        // "Blocked!" flash: BreakPrefix sets SuppressionPulse each time it actually stops an enemy break.
+        if (SoloCartGuardPatch.SuppressionPulse)
+        {
+            SoloCartGuardPatch.SuppressionPulse = false;
+            _cartGuardFlashRemaining = CartGuardFlashSeconds;
+        }
+        if (_cartGuardFlashRemaining > 0f)
+        {
+            _cartGuardFlashRemaining -= Time.deltaTime;
+            if (_cartGuardFlashRemaining < 0f) _cartGuardFlashRemaining = 0f;
+        }
+
+        // "Standby" detection: only meaningful while armed in away-gated mode. Throttle the scene scan.
+        bool near = false;
+        if (armed && Plugin.SoloCartGuardOnlyWhenAway.Value)
+        {
+            _cartGuardNearScanTimer -= Time.deltaTime;
+            if (_cartGuardNearScanTimer <= 0f)
+            {
+                _cartGuardNearScanTimer = CartGuardNearScanInterval;
+                _cartGuardNear = SoloCartGuardPatch.LocalPlayerNearLoot();
+            }
+            near = _cartGuardNear;
+        }
+        else
+        {
+            _cartGuardNear = false;
+        }
+
+        // Entering "near" blinks Standby once; after the blink the label hides until we're away again.
+        if (near && !_cartGuardWasNear)
+            _cartGuardStandbyBlinkRemaining = CartGuardStandbyBlinkSeconds;
+        _cartGuardWasNear = near;
+        if (_cartGuardStandbyBlinkRemaining > 0f)
+        {
+            _cartGuardStandbyBlinkRemaining -= Time.deltaTime;
+            if (_cartGuardStandbyBlinkRemaining < 0f) _cartGuardStandbyBlinkRemaining = 0f;
+        }
     }
 
     private void ChassisDiagnostic()
@@ -367,13 +414,34 @@ public class SoloGraceHud : MonoBehaviour
 
     private void DrawCartGuardLabel()
     {
-        // Read the cached flag (set by TrackCartGuardTransition in Update) rather than re-querying the
-        // patch, mirroring how DrawReliefLabel reads _reliefActive. No disarm fade by design — the
-        // label simply vanishes when the guard is no longer armed.
+        // All state is computed in TrackCartGuardTransition (Update). Three display states:
+        //   Blocked! — a green pulse the instant the guard stops an enemy from damaging loot
+        //   Standby  — a brief yellow blink when you step near your loot (protection paused), then hides
+        //   Active   — steady blue while armed and protecting (you're away, or always-on mode)
         if (!_cartGuardArmed) return;
 
-        string text = "Cart Guard: Active";
-        Color color = new Color(0.55f, 0.85f, 1f, 1f);
+        string text;
+        Color color;
+
+        if (_cartGuardFlashRemaining > 0f)
+        {
+            text = "Cart Guard: Blocked!";
+            float alpha = Mathf.Clamp01(_cartGuardFlashRemaining / CartGuardFlashSeconds);
+            color = new Color(0.45f, 1f, 0.45f, alpha);
+        }
+        else if (_cartGuardWasNear)
+        {
+            // Near your loot: blink "Standby" briefly, then hide until you're away (Active) again.
+            if (_cartGuardStandbyBlinkRemaining <= 0f) return;
+            float alpha = Mathf.Clamp01(_cartGuardStandbyBlinkRemaining / CartGuardStandbyBlinkSeconds);
+            text = "Cart Guard: Standby";
+            color = new Color(1f, 0.9f, 0.4f, alpha);
+        }
+        else
+        {
+            text = "Cart Guard: Active";
+            color = new Color(0.55f, 0.85f, 1f, 1f);
+        }
 
         // Fourth row: grace y=20, chassis y=55, relief y=90, cart guard y=120.
         var rect = new Rect((Screen.width / 2f) - 150f, 120f, 300f, 30f);
