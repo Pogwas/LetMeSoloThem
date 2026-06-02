@@ -24,6 +24,7 @@ public class SoloGraceHud : MonoBehaviour
     private const float ReliefFadeSeconds = 3f;
     private bool _reliefActive;
     private float _reliefFadeRemaining;
+    private bool _cartGuardArmed;
 
     private void OnDestroy()
     {
@@ -48,6 +49,7 @@ public class SoloGraceHud : MonoBehaviour
             CarryEscapeTracker.TryOnTick();
             TrackChassisTransition();
             TrackReliefTransition();
+            TrackCartGuardTransition();
             if (shouldLog) ChassisDiagnostic();
         }
         catch (System.Exception ex)
@@ -125,6 +127,22 @@ public class SoloGraceHud : MonoBehaviour
             _reliefFadeRemaining -= Time.deltaTime;
             if (_reliefFadeRemaining < 0f) _reliefFadeRemaining = 0f;
         }
+    }
+
+    private void TrackCartGuardTransition()
+    {
+        bool armed = SoloCartGuardPatch.GuardArmedForHud();
+        if (armed && !_cartGuardArmed)
+        {
+            // Cart guard just armed for this level — reset the per-arm suppression log.
+            SoloCartGuardPatch.OnGuardArmed();
+            Plugin.Log.LogDebug("[SoloCartGuard] ARMED — cart guard active this level");
+        }
+        else if (!armed && _cartGuardArmed)
+        {
+            Plugin.Log.LogDebug("[SoloCartGuard] DISARMED — cart guard inactive (left level / not solo)");
+        }
+        _cartGuardArmed = armed;
     }
 
     private void ChassisDiagnostic()
@@ -215,6 +233,7 @@ public class SoloGraceHud : MonoBehaviour
         if (_shouldShowGrace) DrawGraceTimer();
         DrawChassisLabel();
         DrawReliefLabel();
+        DrawCartGuardLabel();
     }
 
     private void EnsureStyle()
@@ -338,6 +357,23 @@ public class SoloGraceHud : MonoBehaviour
 
         // Third row: grace timer is at y=20, chassis label at y=55, relief at y=90.
         var rect = new Rect((Screen.width / 2f) - 150f, 90f, 300f, 30f);
+
+        _style.normal.textColor = new Color(0f, 0f, 0f, color.a * 0.85f);
+        GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), text, _style);
+
+        _style.normal.textColor = color;
+        GUI.Label(rect, text, _style);
+    }
+
+    private void DrawCartGuardLabel()
+    {
+        if (!SoloCartGuardPatch.GuardArmedForHud()) return;
+
+        string text = "Cart Guard: Active";
+        Color color = new Color(0.55f, 0.85f, 1f, 1f);
+
+        // Fourth row: grace y=20, chassis y=55, relief y=90, cart guard y=120.
+        var rect = new Rect((Screen.width / 2f) - 150f, 120f, 300f, 30f);
 
         _style.normal.textColor = new Color(0f, 0f, 0f, color.a * 0.85f);
         GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), text, _style);
