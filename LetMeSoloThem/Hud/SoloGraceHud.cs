@@ -26,7 +26,10 @@ public class SoloGraceHud : MonoBehaviour
     private float _reliefFadeRemaining;
     private bool _cartGuardArmed;
     private const float CartGuardFlashSeconds = 1.5f;
+    private const float CartGuardPowerUpSeconds = 2f;
     private float _cartGuardFlashRemaining;
+    private float _cartGuardPowerUpRemaining;
+    private bool _cartGuardWasPresent;
 
     private void OnDestroy()
     {
@@ -158,8 +161,19 @@ public class SoloGraceHud : MonoBehaviour
             _cartGuardFlashRemaining -= Time.deltaTime;
             if (_cartGuardFlashRemaining < 0f) _cartGuardFlashRemaining = 0f;
         }
-        // Active / Powering Down / Off are derived live in DrawCartGuardLabel from the patch's distance
-        // state (SoloCartGuardPatch.NearLoot / ProtectingByDistance / LingerRemaining) — no tracking here.
+
+        // "Power Up": when you leave the cart (present -> away), show a brief power-up cue before "Active".
+        // Protection is already on the whole time — this is just the visual ramp-up, symmetric to Powering
+        // Down. Active / Powering Down / Off are otherwise derived live in DrawCartGuardLabel.
+        bool present = SoloCartGuardPatch.PresentAtCart;
+        if (armed && _cartGuardWasPresent && !present)
+            _cartGuardPowerUpRemaining = CartGuardPowerUpSeconds;
+        _cartGuardWasPresent = present;
+        if (_cartGuardPowerUpRemaining > 0f)
+        {
+            _cartGuardPowerUpRemaining -= Time.deltaTime;
+            if (_cartGuardPowerUpRemaining < 0f) _cartGuardPowerUpRemaining = 0f;
+        }
     }
 
     private void ChassisDiagnostic()
@@ -388,7 +402,8 @@ public class SoloGraceHud : MonoBehaviour
         // Display states, in priority order:
         //   Blocked!       — green pulse the instant the guard stops an enemy hit
         //   Powering Down  — orange, counting the linger seconds down while you stand near your loot
-        //   Off            — red, protection paused because you're present (near + linger elapsed)
+        //   Off            — hidden, protection paused because you're present (near + linger elapsed)
+        //   Power Up       — green, brief cue when you leave the cart before it settles to Active
         //   Active         — blue, armed and protecting (you're away, or always-on mode)
         if (!_cartGuardArmed) return;
 
@@ -414,6 +429,11 @@ public class SoloGraceHud : MonoBehaviour
         {
             // Off (present, linger elapsed): hide the label entirely.
             return;
+        }
+        else if (_cartGuardPowerUpRemaining > 0f)
+        {
+            text = "Cart Guard: Power Up";
+            color = new Color(0.45f, 1f, 0.55f, 1f);
         }
         else
         {
