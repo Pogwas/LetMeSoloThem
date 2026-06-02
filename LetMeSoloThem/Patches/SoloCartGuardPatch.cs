@@ -58,6 +58,11 @@ public static class SoloCartGuardPatch
     // Whether away-distance protection is currently in effect (always true in always-on mode). Read by HUD.
     internal static bool ProtectingByDistance => _protectByDistance;
 
+    // HUD readouts (away-mode only): whether you're currently near your loot, and the linger seconds left
+    // before protection powers down.
+    internal static bool NearLoot => _nearCached;
+    internal static float LingerRemaining => _lingerRemaining;
+
     internal static void Tick(float dt)
     {
         try
@@ -87,6 +92,7 @@ public static class SoloCartGuardPatch
             {
                 _protectByDistance = true;
                 _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
+                _nearCached = false;
                 return;
             }
             if (doScan) _nearCached = LocalPlayerNearLoot();

@@ -26,10 +26,7 @@ public class SoloGraceHud : MonoBehaviour
     private float _reliefFadeRemaining;
     private bool _cartGuardArmed;
     private const float CartGuardFlashSeconds = 1.5f;
-    private const float CartGuardStandbyBlinkSeconds = 1.5f;
     private float _cartGuardFlashRemaining;
-    private float _cartGuardStandbyBlinkRemaining;
-    private bool _cartGuardWasNear;
 
     private void OnDestroy()
     {
@@ -161,20 +158,8 @@ public class SoloGraceHud : MonoBehaviour
             _cartGuardFlashRemaining -= Time.deltaTime;
             if (_cartGuardFlashRemaining < 0f) _cartGuardFlashRemaining = 0f;
         }
-
-        // "Standby": armed in away mode but distance-protection is currently paused (you're near your loot
-        // and the linger window elapsed). Proximity + linger state lives in SoloCartGuardPatch.Tick.
-        bool standby = armed && Plugin.SoloCartGuardOnlyWhenAway.Value && !SoloCartGuardPatch.ProtectingByDistance;
-
-        // Entering standby blinks "Standby" once; after the blink the label hides until protecting again.
-        if (standby && !_cartGuardWasNear)
-            _cartGuardStandbyBlinkRemaining = CartGuardStandbyBlinkSeconds;
-        _cartGuardWasNear = standby;
-        if (_cartGuardStandbyBlinkRemaining > 0f)
-        {
-            _cartGuardStandbyBlinkRemaining -= Time.deltaTime;
-            if (_cartGuardStandbyBlinkRemaining < 0f) _cartGuardStandbyBlinkRemaining = 0f;
-        }
+        // Active / Powering Down / Off are derived live in DrawCartGuardLabel from the patch's distance
+        // state (SoloCartGuardPatch.NearLoot / ProtectingByDistance / LingerRemaining) — no tracking here.
     }
 
     private void ChassisDiagnostic()
@@ -399,14 +384,17 @@ public class SoloGraceHud : MonoBehaviour
 
     private void DrawCartGuardLabel()
     {
-        // All state is computed in TrackCartGuardTransition (Update). Three display states:
-        //   Blocked! — a green pulse the instant the guard stops an enemy from damaging loot
-        //   Standby  — a brief yellow blink when you step near your loot (protection paused), then hides
-        //   Active   — steady blue while armed and protecting (you're away, or always-on mode)
+        // Display states, in priority order:
+        //   Blocked!       — green pulse the instant the guard stops an enemy hit
+        //   Powering Down  — orange, counting the linger seconds down while you stand near your loot
+        //   Off            — red, protection paused because you're present (near + linger elapsed)
+        //   Active         — blue, armed and protecting (you're away, or always-on mode)
         if (!_cartGuardArmed) return;
 
         string text;
         Color color;
+
+        bool nearMode = Plugin.SoloCartGuardOnlyWhenAway.Value && SoloCartGuardPatch.NearLoot;
 
         if (_cartGuardFlashRemaining > 0f)
         {
@@ -414,13 +402,17 @@ public class SoloGraceHud : MonoBehaviour
             float alpha = Mathf.Clamp01(_cartGuardFlashRemaining / CartGuardFlashSeconds);
             color = new Color(0.45f, 1f, 0.45f, alpha);
         }
-        else if (_cartGuardWasNear)
+        else if (nearMode && SoloCartGuardPatch.ProtectingByDistance)
         {
-            // Near your loot: blink "Standby" briefly, then hide until you're away (Active) again.
-            if (_cartGuardStandbyBlinkRemaining <= 0f) return;
-            float alpha = Mathf.Clamp01(_cartGuardStandbyBlinkRemaining / CartGuardStandbyBlinkSeconds);
-            text = "Cart Guard: Standby";
-            color = new Color(1f, 0.9f, 0.4f, alpha);
+            int secs = Mathf.CeilToInt(SoloCartGuardPatch.LingerRemaining);
+            if (secs < 0) secs = 0;
+            text = $"Cart Guard: Powering Down: {secs}s";
+            color = new Color(1f, 0.6f, 0.2f, 1f);
+        }
+        else if (nearMode)
+        {
+            text = "Cart Guard: Off";
+            color = new Color(1f, 0.45f, 0.45f, 1f);
         }
         else
         {
