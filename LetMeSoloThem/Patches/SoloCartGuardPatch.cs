@@ -15,9 +15,9 @@ namespace LetMeSoloThem.Patches;
 //      which is set ONLY by enemy contact (EnemyRigidbody.EnemyInteractTimeSet) — never by player
 //      drops/throws — so player-caused breaks still apply.
 //
-// Neither names a specific enemy, so all loot-smashing enemies are covered. The away gate is global
-// (proximity to the nearest valuable) with a LingerSeconds window so protection doesn't drop the instant
-// you arrive. Host-authoritative (solo = host); no RPC. Auto-registered by Plugin.Awake's PatchAll().
+// Neither names a specific enemy, so all loot-smashing enemies are covered. The away gate is a radius
+// around the cart (with a LingerSeconds window so protection doesn't drop the instant you arrive).
+// Host-authoritative (solo = host); no RPC. Auto-registered by Plugin.Awake's PatchAll().
 //
 // NOTE: the bare [HarmonyPatch] on the class is REQUIRED. PatchAll() only discovers classes annotated
 // with [HarmonyPatch]; without it the per-method attribute below is silently skipped (Quirk 7).
@@ -99,11 +99,11 @@ public static class SoloCartGuardPatch
 
             if (doScan)
             {
-                float dsq = NearestPresentDistanceSq();
+                float dsq = NearestCartDistanceSq();
                 if (dsq != float.MaxValue)
                 {
-                    // "Present" = right at the cart/loot (small radius), with hysteresis so it doesn't
-                    // flicker. Power-down only happens here.
+                    // "Present" = within a radius of the cart, with hysteresis so it doesn't flicker
+                    // while you push it. Power-down only happens here.
                     float pr = Plugin.SoloCartGuardCartTouchDistance.Value;
                     float prNearSq = pr * pr;
                     float prFar = pr + NearHysteresis;
@@ -159,11 +159,11 @@ public static class SoloCartGuardPatch
         _suppressLogged = false;
     }
 
-    // Squared distance from the local player to the nearest "present" anchor — any valuable OR any cart.
-    // Including carts keeps the state stable while you PUSH the cart (you're always right next to it).
-    // Returns float.MaxValue if nothing is found / on uncertainty, so the caller can ignore that sample
+    // Squared distance from the local player to the nearest CART — "present" is a radius around the cart
+    // only (not staged valuables), so standing next to loose loot elsewhere doesn't pause the guard.
+    // Returns float.MaxValue if no cart is found / on uncertainty, so the caller can ignore that sample
     // (avoids a transient empty scan flipping the state). Scans the scene, so the caller MUST throttle it.
-    private static float NearestPresentDistanceSq()
+    private static float NearestCartDistanceSq()
     {
         try
         {
@@ -171,15 +171,6 @@ public static class SoloCartGuardPatch
             if (pc == null || pc.playerAvatarScript == null) return float.MaxValue;
             Vector3 p = pc.playerAvatarScript.transform.position;
             float best = float.MaxValue;
-
-            var valuables = UnityEngine.Object.FindObjectsOfType<ValuableObject>();
-            for (int i = 0; i < valuables.Length; i++)
-            {
-                var v = valuables[i];
-                if (v == null) continue;
-                float d = (v.transform.position - p).sqrMagnitude;
-                if (d < best) best = d;
-            }
 
             var carts = UnityEngine.Object.FindObjectsOfType<PhysGrabCart>();
             for (int i = 0; i < carts.Length; i++)
