@@ -314,7 +314,7 @@ public class Plugin : BaseUnityPlugin
                 new AcceptableValueRange<float>(0f, 30f)));
 
         SoloCartGuardCartTouchDistance = Config.Bind(
-            "Solo Cart Guard", "CartTouchDistance", 3.0f,
+            "Solo Cart Guard", "CartTouchDistance", 5.0f,
             new ConfigDescription(
                 "Radius (meters) around the cart that counts as being 'at the cart'. Two roles: (1) the guard stays OFF at level start until you first come this close to a cart (then it arms for the level); (2) while you're within this radius of a cart you're considered present, so protection powers down and turns off. Larger = a wider zone around the cart counts as 'present'.",
                 new AcceptableValueRange<float>(0.5f, 15f)));
