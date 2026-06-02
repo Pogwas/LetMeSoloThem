@@ -115,11 +115,12 @@ public static class SoloCartGuardPatch
                     if (_present) { if (dsq > prFarSq) _present = false; }
                     else if (dsq <= prNearSq) _present = true;
 
-                    // You count as having "left" once you get AwayDistance from the cart/loot. Until then,
-                    // being at the cart does NOT power down — so setting up / loading shows Active, and
-                    // pushing the cart (it travels with you) never trips the power-down.
+                    // You count as having "left" once you get AwayDistance from the cart/loot — but ONLY
+                    // after arming (you spawn far from the cart, so without this guard the walk over to it
+                    // would pre-set "left" and it'd power down the instant you first touch the cart). Until
+                    // you've left post-arm, being at the cart shows Active; pushing it never trips power-down.
                     float away = Plugin.SoloCartGuardAwayDistance.Value;
-                    if (dsq > away * away) _hasLeftSinceArm = true;
+                    if (_cartTouchedThisLevel && dsq > away * away) _hasLeftSinceArm = true;
                 }
             }
 
