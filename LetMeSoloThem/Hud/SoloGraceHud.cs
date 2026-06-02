@@ -32,7 +32,6 @@ public class SoloGraceHud : MonoBehaviour
     private float _cartGuardPowerUpRemaining;
     private float _cartGuardOffShowRemaining;
     private bool _cartGuardWasPresent;
-    private bool _cartGuardWasPoweringDown;
 
     private void OnDestroy()
     {
@@ -165,29 +164,20 @@ public class SoloGraceHud : MonoBehaviour
             if (_cartGuardFlashRemaining < 0f) _cartGuardFlashRemaining = 0f;
         }
 
-        // "Power Up": when you leave the cart (present -> away), show a brief power-up cue before "Active".
-        // Protection is already on the whole time — this is just the visual ramp-up, symmetric to Powering
-        // Down. Active / Powering Down / Off are otherwise derived live in DrawCartGuardLabel.
+        // Edge cues, both keyed off the present<->away transition (state lives in SoloCartGuardPatch):
+        //   leave the cart (present -> away) → brief "Powering Up" before "Active"
+        //   arrive at the cart (away -> present) → brief "Off" before the label hides
         bool present = SoloCartGuardPatch.PresentAtCart;
         if (armed && _cartGuardWasPresent && !present)
             _cartGuardPowerUpRemaining = CartGuardPowerUpSeconds;
+        if (armed && present && !_cartGuardWasPresent)
+            _cartGuardOffShowRemaining = CartGuardOffShowSeconds;
         _cartGuardWasPresent = present;
         if (_cartGuardPowerUpRemaining > 0f)
         {
             _cartGuardPowerUpRemaining -= Time.deltaTime;
             if (_cartGuardPowerUpRemaining < 0f) _cartGuardPowerUpRemaining = 0f;
         }
-
-        // "Off" cue: when a Powering Down countdown reaches 0 (i.e. on a RETURN to the cart), briefly show
-        // "Off" before the label disappears. The first straight-to-off arrival never shows Powering Down,
-        // so this edge doesn't fire then — it just stays hidden.
-        bool poweringDown = armed && present && SoloCartGuardPatch.ProtectingByDistance
-                            && Plugin.SoloCartGuardOnlyWhenAway.Value;
-        bool offNow = armed && present && !SoloCartGuardPatch.ProtectingByDistance
-                      && Plugin.SoloCartGuardOnlyWhenAway.Value;
-        if (offNow && _cartGuardWasPoweringDown)
-            _cartGuardOffShowRemaining = CartGuardOffShowSeconds;
-        _cartGuardWasPoweringDown = poweringDown;
         if (_cartGuardOffShowRemaining > 0f)
         {
             _cartGuardOffShowRemaining -= Time.deltaTime;
@@ -419,17 +409,14 @@ public class SoloGraceHud : MonoBehaviour
     private void DrawCartGuardLabel()
     {
         // Display states, in priority order:
-        //   Blocked!       — green pulse the instant the guard stops an enemy hit
-        //   Powering Down  — orange, counting the linger seconds down while you stand near your loot
-        //   Off            — hidden, protection paused because you're present (near + linger elapsed)
-        //   Powering Up    — green, brief cue when you leave the cart before it settles to Active
-        //   Active         — blue, armed and protecting (you're away, or always-on mode)
+        //   Blocked!     — green pulse the instant the guard stops an enemy hit
+        //   Off          — red, brief cue when you reach the cart (protection off), then hides
+        //   Powering Up  — green, brief cue when you leave the cart before it settles to Active
+        //   Active       — blue, armed and protecting (you're away, or always-on mode)
         if (!_cartGuardArmed) return;
 
         string text;
         Color color;
-
-        bool nearMode = Plugin.SoloCartGuardOnlyWhenAway.Value && SoloCartGuardPatch.PresentAtCart;
 
         if (_cartGuardFlashRemaining > 0f)
         {
@@ -437,16 +424,9 @@ public class SoloGraceHud : MonoBehaviour
             float alpha = Mathf.Clamp01(_cartGuardFlashRemaining / CartGuardFlashSeconds);
             color = new Color(0.45f, 1f, 0.45f, alpha);
         }
-        else if (nearMode && SoloCartGuardPatch.ProtectingByDistance)
+        else if (SoloCartGuardPatch.PresentAtCart)
         {
-            int secs = Mathf.CeilToInt(SoloCartGuardPatch.LingerRemaining);
-            if (secs < 0) secs = 0;
-            text = $"Cart Guard: Powering Down: {secs}s";
-            color = new Color(1f, 0.6f, 0.2f, 1f);
-        }
-        else if (nearMode)
-        {
-            // Off (present, linger elapsed): show "Off" briefly (fading) after a Powering Down, then hide.
+            // At the cart (protection off): show "Off" briefly (fading), then hide.
             if (_cartGuardOffShowRemaining <= 0f) return;
             float alpha = Mathf.Clamp01(_cartGuardOffShowRemaining / CartGuardOffShowSeconds);
             text = "Cart Guard: Off";
@@ -464,7 +444,7 @@ public class SoloGraceHud : MonoBehaviour
         }
 
         // Fourth row (grace y=20, chassis y=55, relief y=90, cart guard y=120). Wider than the others so the
-        // longer "Powering Down: Ns" text doesn't clip; still centered on screen.
+        // longer labels don't clip; still centered on screen.
         var rect = new Rect((Screen.width / 2f) - 260f, 120f, 520f, 30f);
 
         _style.normal.textColor = new Color(0f, 0f, 0f, color.a * 0.85f);

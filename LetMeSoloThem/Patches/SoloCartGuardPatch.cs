@@ -41,14 +41,12 @@ public static class SoloCartGuardPatch
     // ---- "Present at the cart" protection toggle ----------------------------------------------------
     // Maintained once per frame by Tick() (called from SoloGraceHud.Update). "Present" = you're right at
     // the cart/loot (within CartTouchDistance, with hysteresis so it doesn't flicker while you push the
-    // cart). While present you're defending it yourself, so protection powers down over LingerSeconds then
-    // turns OFF. While away from the cart/loot, protection is ON (Active).
+    // cart). While present you're defending it yourself, so protection is OFF (right away). While away from
+    // the cart/loot, protection is ON (Active).
     private const float NearScanInterval = 0.25f;
     private const float NearHysteresis = 1.5f; // extra meters past CartTouchDistance before you count as away
     private static bool _protectByDistance = true;
-    private static float _lingerRemaining;
     private static bool _present;            // right at the cart/loot (small radius, with hysteresis)
-    private static bool _hasLeftSinceArm;    // left the cart since arming? (gates the "Powering Down" countdown)
     private static float _nearScanTimer;
 
     // Per-level latch: the guard stays OFF until the local player has reached their cart at least once this
@@ -56,12 +54,8 @@ public static class SoloCartGuardPatch
     // level. Gating both the protection (GuardConditions) and the HUD (GuardArmedForHud) on it.
     private static bool _cartTouchedThisLevel;
 
-    // Whether away-distance protection is currently in effect (always true in always-on mode). Read by HUD.
-    internal static bool ProtectingByDistance => _protectByDistance;
-
-    // HUD readouts (away-mode only): are you at the cart (power-down/off phase), and the linger seconds left.
+    // HUD readout (away-mode only): are you at the cart (protection off)?
     internal static bool PresentAtCart => _present;
-    internal static float LingerRemaining => _lingerRemaining;
 
     internal static void Tick(float dt)
     {
@@ -73,9 +67,7 @@ public static class SoloCartGuardPatch
             {
                 _cartTouchedThisLevel = false;
                 _protectByDistance = true;
-                _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
                 _present = false;
-                _hasLeftSinceArm = false;
                 return;
             }
 
@@ -88,11 +80,10 @@ public static class SoloCartGuardPatch
             if (!_cartTouchedThisLevel && doScan && LocalPlayerTouchingCart())
                 _cartTouchedThisLevel = true;
 
-            // Away-distance protection (with linger). In always-on mode it's always protecting.
+            // In always-on mode it's always protecting.
             if (!Plugin.SoloCartGuardOnlyWhenAway.Value)
             {
                 _protectByDistance = true;
-                _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
                 _present = false;
                 return;
             }
@@ -103,7 +94,7 @@ public static class SoloCartGuardPatch
                 if (dsq != float.MaxValue)
                 {
                     // "Present" = right at the cart/loot (small radius), with hysteresis so it doesn't
-                    // flicker. Power-down only happens here.
+                    // flicker while you push the cart.
                     float pr = Plugin.SoloCartGuardCartTouchDistance.Value;
                     float prNearSq = pr * pr;
                     float prFar = pr + NearHysteresis;
@@ -113,29 +104,8 @@ public static class SoloCartGuardPatch
                 }
             }
 
-            // Mark that you've left once you're no longer present (only after arming). This gates the
-            // "Powering Down" countdown: the FIRST time at the cart this level there's no countdown (the
-            // guard never really turned on yet) — it just goes straight to Off. The countdown only plays
-            // when you RETURN after having been away.
-            if (_cartTouchedThisLevel && !_present) _hasLeftSinceArm = true;
-
-            if (_present && _hasLeftSinceArm)
-            {
-                // Returned to the cart: power down over the linger window, then hand defense back (off).
-                if (_lingerRemaining > 0f) { _lingerRemaining -= dt; _protectByDistance = true; }
-                else _protectByDistance = false;
-            }
-            else if (_present)
-            {
-                // First arrival at the cart this level: straight to Off, no countdown.
-                _protectByDistance = false;
-            }
-            else
-            {
-                // Away from the cart/loot → protect; reset linger for the next time you come back.
-                _protectByDistance = true;
-                _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
-            }
+            // At the cart → protection off (right away); away → protecting.
+            _protectByDistance = !_present;
         }
         catch
         {
@@ -276,7 +246,7 @@ public static class SoloCartGuardPatch
             if (!_suppressLogged)
             {
                 _suppressLogged = true;
-                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy attack on valuable (no damage, no knockback) — first this arm");
+                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy attack on valuable (no damage) — first this arm");
             }
             return false; // skip: no break impulse, no force/torque, no destroy-launch, no enemyInteractionTimer
         }

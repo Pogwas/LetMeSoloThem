@@ -63,7 +63,6 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<bool> SoloCartGuardOnlyWhenAway;
     internal static ConfigEntry<bool> SoloCartGuardCartOnly;
     internal static ConfigEntry<bool> SoloCartGuardWorksInMultiplayer;
-    internal static ConfigEntry<float> SoloCartGuardLingerSeconds;
     internal static ConfigEntry<float> SoloCartGuardCartTouchDistance;
 
     private Harmony _harmony;
@@ -293,11 +292,11 @@ public class Plugin : BaseUnityPlugin
 
         SoloCartGuardEnabled = Config.Bind(
             "Solo Cart Guard", "Enabled", true,
-            "Master toggle for Solo Cart Guard. When true (default), enemies cannot destroy or chip the value of your valuables while the guard conditions are met (see OnlyWhenAway). Enemies can still shove/knock your loot around — they just can't damage it. Your own drops, throws, and bumps are unaffected. False = full vanilla.");
+            "Master toggle for Solo Cart Guard. When true (default), enemies cannot destroy or chip the value of your valuables while the guard conditions are met (see OnlyWhenAway). Your own drops, throws, and bumps are unaffected. False = full vanilla.");
 
         SoloCartGuardOnlyWhenAway = Config.Bind(
             "Solo Cart Guard", "OnlyWhenAway", true,
-            "When true (default), loot is only protected from enemies while you are AWAY from your cart — when you're at the cart (within CartTouchDistance) you defend it yourself, so protection powers down and turns off. When false, loot is protected from enemies the whole time you're solo, regardless of where you are.");
+            "When true (default), loot is only protected from enemies while you are AWAY from your cart — when you're at the cart (within CartTouchDistance) you defend it yourself, so protection turns off. When false, loot is protected from enemies the whole time you're solo, regardless of where you are.");
 
         SoloCartGuardCartOnly = Config.Bind(
             "Solo Cart Guard", "CartOnly", false,
@@ -307,16 +306,10 @@ public class Plugin : BaseUnityPlugin
             "Solo Cart Guard", "WorksInMultiplayer", false,
             "When false (default), the guard only applies in true solo (player count <= 1). When true, the host (master client) also gets it in MP lobbies (the 'present' check keys off the host's position).");
 
-        SoloCartGuardLingerSeconds = Config.Bind(
-            "Solo Cart Guard", "LingerSeconds", 3f,
-            new ConfigDescription(
-                "Only used when OnlyWhenAway=true. When you arrive back at the cart, protection stays ON for this many seconds (shown as a 'Powering Down' countdown) before it turns off and hands defense back to you. 0 = protection turns off the instant you reach the cart.",
-                new AcceptableValueRange<float>(0f, 30f)));
-
         SoloCartGuardCartTouchDistance = Config.Bind(
             "Solo Cart Guard", "CartTouchDistance", 2.5f,
             new ConfigDescription(
-                "How close (meters) counts as being 'at the cart'. Two roles: (1) the guard stays OFF at level start until you first come this close to a cart (then it arms for the level); (2) while you're within this range of the cart/loot you're considered present, so protection powers down and turns off. Larger = a wider zone around the cart counts as 'present'.",
+                "How close (meters) counts as being 'at the cart'. Two roles: (1) the guard stays OFF at level start until you first come this close to a cart (then it arms for the level); (2) while you're within this range of the cart/loot you're considered present, so protection turns off. Larger = a wider zone around the cart counts as 'present'.",
                 new AcceptableValueRange<float>(0.5f, 15f)));
 
         _harmony = new Harmony(PluginGuid);
