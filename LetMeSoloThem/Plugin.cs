@@ -59,6 +59,11 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloCarryEscapeStruggleInputDebounceSeconds;
     internal static ConfigEntry<bool> SoloExtractionEnabled;
     internal static ConfigEntry<bool> SoloExtractionWorksInMultiplayer;
+    internal static ConfigEntry<bool> SoloCartGuardEnabled;
+    internal static ConfigEntry<bool> SoloCartGuardOnlyWhenAway;
+    internal static ConfigEntry<float> SoloCartGuardAwayDistance;
+    internal static ConfigEntry<bool> SoloCartGuardCartOnly;
+    internal static ConfigEntry<bool> SoloCartGuardWorksInMultiplayer;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -284,6 +289,30 @@ public class Plugin : BaseUnityPlugin
         SoloExtractionWorksInMultiplayer = Config.Bind(
             "Solo Extraction Relief", "WorksInMultiplayer", false,
             "When false (default), relief only applies in true solo (player count <= 1). When true, the host (master client) also gets relief in MP lobbies.");
+
+        SoloCartGuardEnabled = Config.Bind(
+            "Solo Cart Guard", "Enabled", true,
+            "Master toggle for Solo Cart Guard. When true (default), enemies cannot destroy or chip the value of your valuables while the guard conditions are met (see OnlyWhenAway). Enemies can still shove/knock your loot around — they just can't damage it. Your own drops, throws, and bumps are unaffected. False = full vanilla.");
+
+        SoloCartGuardOnlyWhenAway = Config.Bind(
+            "Solo Cart Guard", "OnlyWhenAway", true,
+            new ConfigDescription(
+                "When true (default), loot is only protected from enemies while you are FARTHER than AwayDistance from it — so when you're standing right there you defend it yourself (vanilla). When false, loot is protected from enemies the whole time you're solo, regardless of where you are.",
+                null));
+
+        SoloCartGuardAwayDistance = Config.Bind(
+            "Solo Cart Guard", "AwayDistance", 6f,
+            new ConfigDescription(
+                "Distance in meters within which protection is OFF (you count as 'present' and defend the loot yourself). Only used when OnlyWhenAway=true. 6 (default) ~ standing at the cart. Larger = you must be farther away before protection kicks in.",
+                new AcceptableValueRange<float>(0f, 30f)));
+
+        SoloCartGuardCartOnly = Config.Bind(
+            "Solo Cart Guard", "CartOnly", false,
+            "When false (default), ALL your valuables are protected (cart loot AND dropped/staged valuables anywhere). When true, only valuables currently loaded in a cart are protected; loose loot lying in a room is left vanilla.");
+
+        SoloCartGuardWorksInMultiplayer = Config.Bind(
+            "Solo Cart Guard", "WorksInMultiplayer", false,
+            "When false (default), the guard only applies in true solo (player count <= 1). When true, the host (master client) also gets it in MP lobbies (the 'away' check keys off the host's position).");
 
         _harmony = new Harmony(PluginGuid);
         _harmony.PatchAll();
