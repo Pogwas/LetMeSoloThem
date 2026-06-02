@@ -10,6 +10,12 @@ namespace LetMeSoloThem.Patches;
 // EnemyDirector.SetInvestigate Prefix drops the "PlayerRoom" pings while keeping the StartRoom
 // lure-to-truck (Task 3). All gated on ReliefActive(). Host-authoritative (solo = host); no RPC.
 // Auto-registered by Plugin.Awake's _harmony.PatchAll().
+//
+// NOTE: the bare [HarmonyPatch] on the class is REQUIRED. PatchAll() only discovers classes annotated
+// with [HarmonyPatch]; without it, the per-method [HarmonyPatch(...)] attributes below are silently
+// skipped (no error) and none of the patches apply. This class targets three different methods, so it
+// can't use a single typed class-level attribute — the bare marker + per-method targets is the pattern.
+[HarmonyPatch]
 public static class SoloExtractionReliefPatch
 {
     // Internal vanilla fields are not accessible cross-assembly — read them via FieldRef
