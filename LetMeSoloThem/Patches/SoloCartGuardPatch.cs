@@ -30,8 +30,25 @@ public static class SoloCartGuardPatch
     private static readonly AccessTools.FieldRef<PhysGrabObjectImpactDetector, PhysGrabCart> CurrentCartRef =
         AccessTools.FieldRefAccess<PhysGrabObjectImpactDetector, PhysGrabCart>("currentCart");
 
-    // Verification aid: log the first suppression per session so a playtest can confirm the patch fires.
+    // Verification aid: log the first suppression per arm so a playtest can confirm the patch fires.
+    // Reset each new level by OnGuardArmed (called from SoloGraceHud's disarmed->armed transition).
     private static bool _suppressLogged;
+
+    // True in true-solo, or (when WorksInMultiplayer) when we're the authoritative host.
+    // A null player list = offline singleplayer session, treated as solo.
+    private static bool IsSoloOrAuthorizedHost()
+    {
+        if (Plugin.SoloCartGuardWorksInMultiplayer.Value)
+            return SemiFunc.IsMasterClientOrSingleplayer();
+        return (SemiFunc.PlayerGetList()?.Count ?? 1) <= 1;
+    }
+
+    // Reset the once-per-arm suppression log so a multi-run playtest sees it each new level.
+    // Mirrors SoloExtractionReliefPatch.OnReliefArmed.
+    internal static void OnGuardArmed()
+    {
+        _suppressLogged = false;
+    }
 
     // True when the guard should suppress THIS break. Returns false (vanilla) on any uncertainty.
     internal static bool GuardActive(PhysGrabObjectImpactDetector detector)
@@ -48,15 +65,7 @@ public static class SoloCartGuardPatch
             if (ValuableObjectRef(detector) == null) return false;
 
             // Solo / host gate.
-            if (Plugin.SoloCartGuardWorksInMultiplayer.Value)
-            {
-                if (!SemiFunc.IsMasterClientOrSingleplayer()) return false;
-            }
-            else
-            {
-                int playerCount = SemiFunc.PlayerGetList()?.Count ?? 1;
-                if (playerCount > 1) return false;
-            }
+            if (!IsSoloOrAuthorizedHost()) return false;
 
             // Cart-only scope.
             if (Plugin.SoloCartGuardCartOnly.Value && CurrentCartRef(detector) == null)
@@ -88,10 +97,7 @@ public static class SoloCartGuardPatch
         {
             if (!Plugin.SoloCartGuardEnabled.Value) return false;
             if (!SemiFunc.RunIsLevel()) return false;
-            if (Plugin.SoloCartGuardWorksInMultiplayer.Value)
-                return SemiFunc.IsMasterClientOrSingleplayer();
-            int playerCount = SemiFunc.PlayerGetList()?.Count ?? 1;
-            return playerCount <= 1;
+            return IsSoloOrAuthorizedHost();
         }
         catch
         {
@@ -111,7 +117,7 @@ public static class SoloCartGuardPatch
             if (!_suppressLogged)
             {
                 _suppressLogged = true;
-                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy-caused valuable break (first this session)");
+                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy-caused valuable break (first this arm)");
             }
             return false;
         }
