@@ -117,12 +117,18 @@ public static class SoloExtractionReliefPatch
     // skips the original.
     [HarmonyPatch(typeof(EnemyDirector), "SetInvestigate")]
     [HarmonyPrefix]
-    public static bool SetInvestigatePrefix(EnemyDirector __instance, float radius)
+    public static bool SetInvestigatePrefix(EnemyDirector __instance, float radius, bool pathfindOnly)
     {
         try
         {
             if (!Plugin.SoloExtractionSuppressPings.Value) return true;
             if (__instance == null) return true;
+            // Only EnemyDirector's deliberate herding pings (StartRoom/PlayerRoom/baseline) pass
+            // pathfindOnly=true. Every NOISE reaction — gunshots (ItemGun), dropped/bumped objects
+            // (PhysGrabObjectImpactDetector/PhysGrabHinge), the extraction point, valuables — uses the
+            // 2-arg call with pathfindOnly=false. Let all of those through so enemies still react to the
+            // player's noise; we only want to kill the omniscient "pathfind to your room" broadcast.
+            if (!pathfindOnly) return true;
             if (radius > ExtractionPingRangeMax) return true;   // baseline float.MaxValue investigate — leave it
             if (!ReliefActive()) return true;
 
