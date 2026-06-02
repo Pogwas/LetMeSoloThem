@@ -27,9 +27,12 @@ public class SoloGraceHud : MonoBehaviour
     private bool _cartGuardArmed;
     private const float CartGuardFlashSeconds = 1.5f;
     private const float CartGuardPowerUpSeconds = 1f;
+    private const float CartGuardOffShowSeconds = 2f;
     private float _cartGuardFlashRemaining;
     private float _cartGuardPowerUpRemaining;
+    private float _cartGuardOffShowRemaining;
     private bool _cartGuardWasPresent;
+    private bool _cartGuardWasPoweringDown;
 
     private void OnDestroy()
     {
@@ -173,6 +176,22 @@ public class SoloGraceHud : MonoBehaviour
         {
             _cartGuardPowerUpRemaining -= Time.deltaTime;
             if (_cartGuardPowerUpRemaining < 0f) _cartGuardPowerUpRemaining = 0f;
+        }
+
+        // "Off" cue: when a Powering Down countdown reaches 0 (i.e. on a RETURN to the cart), briefly show
+        // "Off" before the label disappears. The first straight-to-off arrival never shows Powering Down,
+        // so this edge doesn't fire then — it just stays hidden.
+        bool poweringDown = armed && present && SoloCartGuardPatch.ProtectingByDistance
+                            && Plugin.SoloCartGuardOnlyWhenAway.Value;
+        bool offNow = armed && present && !SoloCartGuardPatch.ProtectingByDistance
+                      && Plugin.SoloCartGuardOnlyWhenAway.Value;
+        if (offNow && _cartGuardWasPoweringDown)
+            _cartGuardOffShowRemaining = CartGuardOffShowSeconds;
+        _cartGuardWasPoweringDown = poweringDown;
+        if (_cartGuardOffShowRemaining > 0f)
+        {
+            _cartGuardOffShowRemaining -= Time.deltaTime;
+            if (_cartGuardOffShowRemaining < 0f) _cartGuardOffShowRemaining = 0f;
         }
     }
 
@@ -427,8 +446,11 @@ public class SoloGraceHud : MonoBehaviour
         }
         else if (nearMode)
         {
-            // Off (present, linger elapsed): hide the label entirely.
-            return;
+            // Off (present, linger elapsed): show "Off" briefly (fading) after a Powering Down, then hide.
+            if (_cartGuardOffShowRemaining <= 0f) return;
+            float alpha = Mathf.Clamp01(_cartGuardOffShowRemaining / CartGuardOffShowSeconds);
+            text = "Cart Guard: Off";
+            color = new Color(1f, 0.45f, 0.45f, alpha);
         }
         else if (_cartGuardPowerUpRemaining > 0f)
         {
