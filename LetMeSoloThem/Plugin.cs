@@ -61,7 +61,6 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<bool> SoloExtractionWorksInMultiplayer;
     internal static ConfigEntry<bool> SoloCartGuardEnabled;
     internal static ConfigEntry<bool> SoloCartGuardOnlyWhenAway;
-    internal static ConfigEntry<float> SoloCartGuardAwayDistance;
     internal static ConfigEntry<bool> SoloCartGuardCartOnly;
     internal static ConfigEntry<bool> SoloCartGuardWorksInMultiplayer;
     internal static ConfigEntry<float> SoloCartGuardLingerSeconds;
@@ -298,13 +297,7 @@ public class Plugin : BaseUnityPlugin
 
         SoloCartGuardOnlyWhenAway = Config.Bind(
             "Solo Cart Guard", "OnlyWhenAway", true,
-            "When true (default), loot is only protected from enemies while you are FARTHER than AwayDistance from it — so when you're standing right there you defend it yourself (vanilla). When false, loot is protected from enemies the whole time you're solo, regardless of where you are.");
-
-        SoloCartGuardAwayDistance = Config.Bind(
-            "Solo Cart Guard", "AwayDistance", 6f,
-            new ConfigDescription(
-                "Distance in meters within which protection is OFF (you count as 'present' and defend the loot yourself). Only used when OnlyWhenAway=true. 6 (default) ~ standing at the cart. Larger = you must be farther away before protection kicks in.",
-                new AcceptableValueRange<float>(0f, 30f)));
+            "When true (default), loot is only protected from enemies while you are AWAY from your cart — when you're at the cart (within CartTouchDistance) you defend it yourself, so protection powers down and turns off. When false, loot is protected from enemies the whole time you're solo, regardless of where you are.");
 
         SoloCartGuardCartOnly = Config.Bind(
             "Solo Cart Guard", "CartOnly", false,
@@ -312,18 +305,18 @@ public class Plugin : BaseUnityPlugin
 
         SoloCartGuardWorksInMultiplayer = Config.Bind(
             "Solo Cart Guard", "WorksInMultiplayer", false,
-            "When false (default), the guard only applies in true solo (player count <= 1). When true, the host (master client) also gets it in MP lobbies (the 'away' check keys off the host's position).");
+            "When false (default), the guard only applies in true solo (player count <= 1). When true, the host (master client) also gets it in MP lobbies (the 'present' check keys off the host's position).");
 
         SoloCartGuardLingerSeconds = Config.Bind(
             "Solo Cart Guard", "LingerSeconds", 3f,
             new ConfigDescription(
-                "Only used when OnlyWhenAway=true. Protection stays ON for this many seconds AFTER you get close to your loot before handing defense back to you — so nothing gets smashed in the instant you arrive while enemies are mid-swing. 0 = protection ends the moment you're within AwayDistance.",
+                "Only used when OnlyWhenAway=true. When you arrive back at the cart, protection stays ON for this many seconds (shown as a 'Powering Down' countdown) before it turns off and hands defense back to you. 0 = protection turns off the instant you reach the cart.",
                 new AcceptableValueRange<float>(0f, 30f)));
 
         SoloCartGuardCartTouchDistance = Config.Bind(
             "Solo Cart Guard", "CartTouchDistance", 2.5f,
             new ConfigDescription(
-                "The guard stays OFF at the start of each level until you've gone to your cart at least once — it arms when you come within this many meters of a cart, then stays armed for the rest of the level. Prevents 'Cart Guard: Active' from showing before you've engaged with the cart. Lower = you must get closer to arm it.",
+                "How close (meters) counts as being 'at the cart'. Two roles: (1) the guard stays OFF at level start until you first come this close to a cart (then it arms for the level); (2) while you're within this range of the cart/loot you're considered present, so protection powers down and turns off. Larger = a wider zone around the cart counts as 'present'.",
                 new AcceptableValueRange<float>(0.5f, 15f)));
 
         _harmony = new Harmony(PluginGuid);
