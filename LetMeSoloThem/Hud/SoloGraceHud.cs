@@ -26,7 +26,7 @@ public class SoloGraceHud : MonoBehaviour
     private float _reliefFadeRemaining;
     private bool _cartGuardArmed;
     private const float CartGuardFlashSeconds = 1.5f;
-    private const float CartGuardPowerUpSeconds = 2f;
+    private const float CartGuardPowerUpSeconds = 1f;
     private float _cartGuardFlashRemaining;
     private float _cartGuardPowerUpRemaining;
     private bool _cartGuardWasPresent;
@@ -403,7 +403,7 @@ public class SoloGraceHud : MonoBehaviour
         //   Blocked!       — green pulse the instant the guard stops an enemy hit
         //   Powering Down  — orange, counting the linger seconds down while you stand near your loot
         //   Off            — hidden, protection paused because you're present (near + linger elapsed)
-        //   Power Up       — green, brief cue when you leave the cart before it settles to Active
+        //   Powering Up    — green, brief cue when you leave the cart before it settles to Active
         //   Active         — blue, armed and protecting (you're away, or always-on mode)
         if (!_cartGuardArmed) return;
 
@@ -432,7 +432,7 @@ public class SoloGraceHud : MonoBehaviour
         }
         else if (_cartGuardPowerUpRemaining > 0f)
         {
-            text = "Cart Guard: Power Up";
+            text = "Cart Guard: Powering Up";
             color = new Color(0.45f, 1f, 0.55f, 1f);
         }
         else
