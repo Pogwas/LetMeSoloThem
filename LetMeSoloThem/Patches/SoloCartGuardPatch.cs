@@ -9,9 +9,11 @@ namespace LetMeSoloThem.Patches;
 //   1. HurtCollider.PhysObjectHurt prefix — the deliberate-attack seam. Skipping it for an enemy-owned
 //      collider hitting a guarded valuable stops the break impulse (no value loss/destroy) AND the
 //      knockback force (enemies can't shove your loot around) in one place.
-//   2. PhysGrabObjectImpactDetector.Break prefix — a backstop for any other enemy-caused value loss that
-//      doesn't route through (1); gated on the game's own enemyInteractionTimer (set by PhysObjectHurt on
-//      enemy hits to non-held objects). The player's own drops/throws never set it, so they break normally.
+//   2. PhysGrabObjectImpactDetector.Break prefix — catches enemy value-loss that does NOT go through (1),
+//      notably an enemy physically ramming/body-checking loot (EnemyRigidbody collision sets a break
+//      impulse + PhysGrabObject.enemyInteractTimer directly). Gated on PhysGrabObject.enemyInteractTimer,
+//      which is set ONLY by enemy contact (EnemyRigidbody.EnemyInteractTimeSet) — never by player
+//      drops/throws — so player-caused breaks still apply.
 //
 // Neither names a specific enemy, so all loot-smashing enemies are covered. The away gate is global
 // (proximity to the nearest valuable) with a LingerSeconds window so protection doesn't drop the instant
@@ -22,9 +24,6 @@ namespace LetMeSoloThem.Patches;
 [HarmonyPatch]
 public static class SoloCartGuardPatch
 {
-    private static readonly AccessTools.FieldRef<PhysGrabObjectImpactDetector, float> EnemyInteractionTimerRef =
-        AccessTools.FieldRefAccess<PhysGrabObjectImpactDetector, float>("enemyInteractionTimer");
-
     private static readonly AccessTools.FieldRef<PhysGrabObjectImpactDetector, ValuableObject> ValuableObjectRef =
         AccessTools.FieldRefAccess<PhysGrabObjectImpactDetector, ValuableObject>("valuableObject");
 
@@ -288,8 +287,9 @@ public static class SoloCartGuardPatch
         }
     }
 
-    // Seam 2 (backstop): skip any other enemy-caused value loss that doesn't route through PhysObjectHurt.
-    // Gated on the game's enemyInteractionTimer so player-caused breaks (drops/throws) still apply.
+    // Seam 2: catch enemy value-loss that does NOT route through HurtCollider.PhysObjectHurt — notably an
+    // enemy ramming/body-checking loot. Gated on PhysGrabObject.enemyInteractTimer (set only by enemy
+    // contact, never by player drops/throws), so player-caused breaks still apply.
     [HarmonyPatch(typeof(PhysGrabObjectImpactDetector), "Break")]
     [HarmonyPrefix]
     public static bool BreakPrefix(PhysGrabObjectImpactDetector __instance)
@@ -297,7 +297,8 @@ public static class SoloCartGuardPatch
         try
         {
             if (!GuardConditions(__instance)) return true;
-            if (EnemyInteractionTimerRef(__instance) <= 0f) return true; // enemy-caused breaks only
+            var pgo = __instance.GetComponent<PhysGrabObject>();
+            if (pgo == null || pgo.enemyInteractTimer <= 0f) return true; // enemy-caused breaks only
 
             SuppressionPulse = true; // HUD reads this to flash "Blocked!"
             if (!_suppressLogged)
