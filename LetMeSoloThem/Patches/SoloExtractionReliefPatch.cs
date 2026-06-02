@@ -28,6 +28,11 @@ public static class SoloExtractionReliefPatch
     private static readonly AccessTools.FieldRef<EnemyDirector, EnemyDirector.ExtractionsDoneState> ExtractionStateRef =
         AccessTools.FieldRefAccess<EnemyDirector, EnemyDirector.ExtractionsDoneState>("extractionsDoneState");
 
+    // TEMP diagnostic helper: EnemyParent.Spawned is internal — read it to see if the floor is being
+    // applied to a despawned (relevant) vs spawned (irrelevant) enemy. Remove with the diagnostic.
+    private static readonly AccessTools.FieldRef<EnemyParent, bool> EnemyParentSpawnedRef =
+        AccessTools.FieldRefAccess<EnemyParent, bool>("Spawned");
+
     // The extraction pings (StartRoom + PlayerRoom) use range 100f; the baseline EnemyDirector
     // investigate (enemyActionAmount overflow) uses float.MaxValue. Anything at/under this threshold is
     // an extraction ping; we only suppress those, and only in the PlayerRoom phase.
@@ -42,11 +47,16 @@ public static class SoloExtractionReliefPatch
     // whether the PlayerRoom phase is ever reached. -1 = sentinel (not yet seen). Remove once confirmed.
     private static int _lastDiagState = -1;
 
+    // TEMP diagnostic: bounded count of respawn-floor evaluations logged per arm (so we can see whether
+    // the postfixes run during the surge and what DespawnedTimer values they see). Remove once confirmed.
+    private static int _floorDiagCount;
+
     // Called by SoloGraceHud when relief arms (final extraction reached) so the per-arm ping log resets.
     internal static void OnReliefArmed()
     {
         _pingSuppressLogged = false;
         _lastDiagState = -1;
+        _floorDiagCount = 0;
     }
 
     // Shared gate: relief is active only when enabled, all extractions are done, and we're solo
@@ -102,8 +112,17 @@ public static class SoloExtractionReliefPatch
             if (enemyParent == null) return;
             if (!ReliefActive()) return;
 
-            if (enemyParent.DespawnedTimer < floor)
+            float before = enemyParent.DespawnedTimer;
+            if (before < floor)
                 enemyParent.DespawnedTimer = floor;
+
+            // TEMP diagnostic: bounded per-arm log of floor activity to diagnose fast respawns. Shows
+            // whether the postfix runs during the surge and the before/after DespawnedTimer.
+            if (_floorDiagCount < 15)
+            {
+                _floorDiagCount++;
+                Plugin.Log.LogDebug($"[SoloExtraction] respawn-floor: DespawnedTimer {before:F2} -> {enemyParent.DespawnedTimer:F2} (floor={floor}, spawned={EnemyParentSpawnedRef(enemyParent)})");
+            }
         }
         catch (Exception ex)
         {
