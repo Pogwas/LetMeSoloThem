@@ -65,6 +65,7 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<bool> SoloCartGuardCartOnly;
     internal static ConfigEntry<bool> SoloCartGuardWorksInMultiplayer;
     internal static ConfigEntry<float> SoloCartGuardLingerSeconds;
+    internal static ConfigEntry<float> SoloCartGuardCartTouchDistance;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -318,6 +319,12 @@ public class Plugin : BaseUnityPlugin
             new ConfigDescription(
                 "Only used when OnlyWhenAway=true. Protection stays ON for this many seconds AFTER you get close to your loot before handing defense back to you — so nothing gets smashed in the instant you arrive while enemies are mid-swing. 0 = protection ends the moment you're within AwayDistance.",
                 new AcceptableValueRange<float>(0f, 30f)));
+
+        SoloCartGuardCartTouchDistance = Config.Bind(
+            "Solo Cart Guard", "CartTouchDistance", 2.5f,
+            new ConfigDescription(
+                "The guard stays OFF at the start of each level until you've gone to your cart at least once — it arms when you come within this many meters of a cart, then stays armed for the rest of the level. Prevents 'Cart Guard: Active' from showing before you've engaged with the cart. Lower = you must get closer to arm it.",
+                new AcceptableValueRange<float>(0.5f, 15f)));
 
         _harmony = new Harmony(PluginGuid);
         _harmony.PatchAll();

@@ -142,7 +142,7 @@ public class SoloGraceHud : MonoBehaviour
         {
             // Cart guard just armed for this level — reset the per-arm suppression log.
             SoloCartGuardPatch.OnGuardArmed();
-            Plugin.Log.LogDebug("[SoloCartGuard] ARMED — cart guard active this level");
+            Plugin.Log.LogDebug("[SoloCartGuard] ARMED — reached cart, guard active this level");
         }
         else if (!armed && _cartGuardArmed)
         {

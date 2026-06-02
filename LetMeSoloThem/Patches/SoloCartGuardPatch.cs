@@ -50,6 +50,11 @@ public static class SoloCartGuardPatch
     private static bool _nearCached;
     private static float _nearScanTimer;
 
+    // Per-level latch: the guard stays OFF until the local player has reached their cart at least once this
+    // level (you can't be "guarding the cart" before you've been to it). Set by Tick, reset on leaving the
+    // level. Gating both the protection (GuardConditions) and the HUD (GuardArmedForHud) on it.
+    private static bool _cartTouchedThisLevel;
+
     // Whether away-distance protection is currently in effect (always true in always-on mode). Read by HUD.
     internal static bool ProtectingByDistance => _protectByDistance;
 
@@ -57,21 +62,34 @@ public static class SoloCartGuardPatch
     {
         try
         {
-            if (!Plugin.SoloCartGuardEnabled.Value || !Plugin.SoloCartGuardOnlyWhenAway.Value)
+            // Reset everything when we're not in a live solo/host level.
+            bool inSoloLevel = Plugin.SoloCartGuardEnabled.Value && SemiFunc.RunIsLevel() && IsSoloOrAuthorizedHost();
+            if (!inSoloLevel)
             {
+                _cartTouchedThisLevel = false;
                 _protectByDistance = true;
                 _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
                 _nearCached = false;
                 return;
             }
 
+            // Throttle the scene scans (both the cart-touch latch and the away-gate near-loot check).
             _nearScanTimer -= dt;
-            if (_nearScanTimer <= 0f)
-            {
-                _nearScanTimer = NearScanInterval;
-                _nearCached = LocalPlayerNearLoot();
-            }
+            bool doScan = _nearScanTimer <= 0f;
+            if (doScan) _nearScanTimer = NearScanInterval;
 
+            // Arm once you've reached the cart this level; latched until you leave the level.
+            if (!_cartTouchedThisLevel && doScan && LocalPlayerTouchingCart())
+                _cartTouchedThisLevel = true;
+
+            // Away-distance protection (with linger). In always-on mode it's always protecting.
+            if (!Plugin.SoloCartGuardOnlyWhenAway.Value)
+            {
+                _protectByDistance = true;
+                _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
+                return;
+            }
+            if (doScan) _nearCached = LocalPlayerNearLoot();
             if (!_nearCached)
             {
                 // Away from loot: protected, and keep the linger window topped up for when you return.
@@ -140,11 +158,38 @@ public static class SoloCartGuardPatch
         }
     }
 
+    // Latch helper: is the local player within CartTouchDistance of any cart? Throttle the call (it scans
+    // the scene). Returns false on uncertainty.
+    private static bool LocalPlayerTouchingCart()
+    {
+        try
+        {
+            var pc = PlayerController.instance;
+            if (pc == null || pc.playerAvatarScript == null) return false;
+            Vector3 p = pc.playerAvatarScript.transform.position;
+            float touch = Plugin.SoloCartGuardCartTouchDistance.Value;
+            float touchSq = touch * touch;
+            var carts = UnityEngine.Object.FindObjectsOfType<PhysGrabCart>();
+            for (int i = 0; i < carts.Length; i++)
+            {
+                var c = carts[i];
+                if (c == null) continue;
+                if ((c.transform.position - p).sqrMagnitude <= touchSq) return true;
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     // Shared gate (everything except the per-seam "enemy-caused" discriminator). Returns false (vanilla)
     // on any uncertainty. Distance is handled globally via _protectByDistance (maintained by Tick).
     private static bool GuardConditions(PhysGrabObjectImpactDetector detector)
     {
         if (!Plugin.SoloCartGuardEnabled.Value) return false;
+        if (!_cartTouchedThisLevel) return false;                                       // not armed yet
         if (detector == null) return false;
         if (ValuableObjectRef(detector) == null) return false;                          // valuables only
         if (!IsSoloOrAuthorizedHost()) return false;                                    // solo / host
@@ -162,7 +207,8 @@ public static class SoloCartGuardPatch
         {
             if (!Plugin.SoloCartGuardEnabled.Value) return false;
             if (!SemiFunc.RunIsLevel()) return false;
-            return IsSoloOrAuthorizedHost();
+            if (!IsSoloOrAuthorizedHost()) return false;
+            return _cartTouchedThisLevel; // armed only after you've reached the cart this level
         }
         catch
         {
