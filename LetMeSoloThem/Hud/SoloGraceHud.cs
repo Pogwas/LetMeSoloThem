@@ -395,7 +395,7 @@ public class SoloGraceHud : MonoBehaviour
         string text;
         Color color;
 
-        bool nearMode = Plugin.SoloCartGuardOnlyWhenAway.Value && SoloCartGuardPatch.NearLoot;
+        bool nearMode = Plugin.SoloCartGuardOnlyWhenAway.Value && SoloCartGuardPatch.PresentAtCart;
 
         if (_cartGuardFlashRemaining > 0f)
         {
