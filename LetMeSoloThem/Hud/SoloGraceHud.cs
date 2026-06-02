@@ -367,7 +367,10 @@ public class SoloGraceHud : MonoBehaviour
 
     private void DrawCartGuardLabel()
     {
-        if (!SoloCartGuardPatch.GuardArmedForHud()) return;
+        // Read the cached flag (set by TrackCartGuardTransition in Update) rather than re-querying the
+        // patch, mirroring how DrawReliefLabel reads _reliefActive. No disarm fade by design — the
+        // label simply vanishes when the guard is no longer armed.
+        if (!_cartGuardArmed) return;
 
         string text = "Cart Guard: Active";
         Color color = new Color(0.55f, 0.85f, 1f, 1f);
