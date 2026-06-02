@@ -14,7 +14,8 @@ Every gameplay value is exposed as a config entry. Tune to taste.
 - **Solo Enemy Awareness** — Scales enemy detection (vision range and sightings needed to aggro) down by lobby size, so a solo player isn't spotted as easily. Defaults: solo 0.5×, duo 0.75×, trio 0.9×, quad 1.0× (vanilla).
 - **Solo Carry Escape** — When an enemy grabs and carries or locks down a lone player (Hidden, Oogly, Spinny, HeartHugger gas, Spewer) — situations vanilla gives a solo player no counterplay to — mash to struggle free, and your struggle inputs chip the captor's health. Break loose and the enemy is briefly frozen with its chase suppressed so you can relocate. Struggle-only (no passive timer) — you fight your way out. Configurable struggle count, per-press damage, and deaggro timings; off in multiplayer by default.
 - **Solo Extraction Relief** — After the final extraction, vanilla repeatedly "pings" your location to every nearby enemy, herding the whole map onto you during the escape to the truck. This suppresses that omniscient broadcast so enemies aren't magically guided to your room — while leaving the initial lure toward the truck and your own noise (gunshots, dropped loot) intact, so the escape stays tense, just not unfair. Off in multiplayer by default.
-- **On-screen HUD** — Shows the grace countdown, chassis state, and extraction-relief status.
+- **Solo Cart Guard** — A lone player can't watch the cart and explore at the same time, so enemies shredding your hauled loot while you're away is unavoidable. While you're away from your cart, enemies can't destroy or drain the value of your valuables — enemy-agnostic (gnomes, rugrats, anything that hits loot). When you're at the cart you defend it yourself, so protection turns off; walk away and it powers back up. Your own drops, throws, and bumps are unaffected. Configurable cart radius and scope (all loot vs cart-only); off in multiplayer by default. *Covers enemy attacks and ram damage; a couple of edge cases (a rugrat hurling loot to shatter on terrain, rare instant-destroy hazards) aren't covered.*
+- **On-screen HUD** — Shows the grace countdown, chassis state, extraction-relief status, and cart-guard status.
 
 ## Installation
 
@@ -36,6 +37,7 @@ Every gameplay value is exposed as a config entry. Tune to taste.
 | `Solo Enemy Awareness` | Player-count-keyed enemy detection dampening |
 | `Solo Carry Escape` | Enemy-grab struggle-escape: struggle count, per-press damage, post-escape deaggro, MP behavior |
 | `Solo Extraction Relief` | Suppress the post-final-extraction homing pings; MP behavior |
+| `Solo Cart Guard` | Protect cart loot from enemy damage while you're away; cart radius, all-loot vs cart-only, MP behavior |
 
 ## Bug reports
 
@@ -48,6 +50,12 @@ Please open an [Issue](https://github.com/Pogwas/LetMeSoloThem/issues) and inclu
 - Steps to reproduce
 
 ## Changelog
+
+### 0.7.0
+
+New solo-survival feature.
+
+- **Solo Cart Guard** — A solo player can't guard the cart and explore at the same time, so enemies wrecking your hauled loot while you're away was unavoidable. Now, while you're away from your cart, enemies can't destroy or chip the value of your valuables — handled enemy-agnostically (gnomes, rugrats, and anything else that hits loot). When you're at the cart you're defending it yourself, so protection turns off; leave again and it powers back up. Your own drops, throws, and bumps still count normally. Configurable cart radius and scope (all loot vs cart-only); off in multiplayer by default. Known gaps (documented): a rugrat *throwing* loot to shatter on terrain, and rare instant-destroy hazards, aren't covered.
 
 ### 0.6.0
 
