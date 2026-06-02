@@ -12,7 +12,9 @@ Every gameplay value is exposed as a config entry. Tune to taste.
 - **Solo Damage Multiplier** — Scales player-incoming damage by lobby size. Defaults: solo 0.5×, duo 0.75×, trio 0.9×, quad 1.0× (vanilla).
 - **Solo Strength grant** — Grants Strength upgrade levels at the start of a run (and optionally each level after), so a lone player can haul heavier loot. Configurable amounts and MP behavior.
 - **Solo Enemy Awareness** — Scales enemy detection (vision range and sightings needed to aggro) down by lobby size, so a solo player isn't spotted as easily. Defaults: solo 0.5×, duo 0.75×, trio 0.9×, quad 1.0× (vanilla).
-- **On-screen HUD** — Shows the grace countdown and chassis state.
+- **Solo Carry Escape** — When an enemy grabs and carries or locks down a lone player (Hidden, Oogly, Spinny, HeartHugger gas, Spewer) — situations vanilla gives a solo player no counterplay to — mash to struggle free, and your struggle inputs chip the captor's health. Break loose and the enemy is briefly frozen with its chase suppressed so you can relocate. Struggle-only (no passive timer) — you fight your way out. Configurable struggle count, per-press damage, and deaggro timings; off in multiplayer by default.
+- **Solo Extraction Relief** — After the final extraction, vanilla repeatedly "pings" your location to every nearby enemy, herding the whole map onto you during the escape to the truck. This suppresses that omniscient broadcast so enemies aren't magically guided to your room — while leaving the initial lure toward the truck and your own noise (gunshots, dropped loot) intact, so the escape stays tense, just not unfair. Off in multiplayer by default.
+- **On-screen HUD** — Shows the grace countdown, chassis state, and extraction-relief status.
 
 ## Installation
 
@@ -32,6 +34,8 @@ Every gameplay value is exposed as a config entry. Tune to taste.
 | `Solo Damage` | Player-count-keyed damage multipliers (solo/duo/trio/quad) |
 | `Solo Strength` | Strength upgrade levels granted at run start and per round |
 | `Solo Enemy Awareness` | Player-count-keyed enemy detection dampening |
+| `Solo Carry Escape` | Enemy-grab struggle-escape: struggle count, per-press damage, post-escape deaggro, MP behavior |
+| `Solo Extraction Relief` | Suppress the post-final-extraction homing pings; MP behavior |
 
 ## Bug reports
 
@@ -44,6 +48,13 @@ Please open an [Issue](https://github.com/Pogwas/LetMeSoloThem/issues) and inclu
 - Steps to reproduce
 
 ## Changelog
+
+### 0.6.0
+
+Two new solo-survival features.
+
+- **Solo Carry Escape** — Enemies that grab and carry or lock down a lone player (Hidden, Oogly, Spinny, HeartHugger gas, Spewer) previously left a solo player with no counterplay. Now you can mash Space / WASD / click to struggle free, and your inputs damage the captor; after escaping, the enemy is briefly frozen and its chase is suppressed so you can get away. Struggle-only — there's no passive timer, you have to fight out of it. All values configurable; off in multiplayer by default.
+- **Solo Extraction Relief** — After the final extraction, the game repeatedly broadcasts your room to every nearby monster so they pathfind straight to you — the most-complained-about stretch of a run. This suppresses that omniscient "pathfind to your room" broadcast for solo players, so enemies stop being magically herded onto you during the escape to the truck. The initial lure toward the truck and your own noise (gunshots, dropped loot) are left intact — it restores fairness without trivializing the escape. Off in multiplayer by default.
 
 ### 0.5.0
 
