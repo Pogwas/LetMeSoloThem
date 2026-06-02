@@ -64,6 +64,7 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<float> SoloCartGuardAwayDistance;
     internal static ConfigEntry<bool> SoloCartGuardCartOnly;
     internal static ConfigEntry<bool> SoloCartGuardWorksInMultiplayer;
+    internal static ConfigEntry<float> SoloCartGuardLingerSeconds;
 
     private Harmony _harmony;
     private static GameObject _hudGO;
@@ -311,6 +312,12 @@ public class Plugin : BaseUnityPlugin
         SoloCartGuardWorksInMultiplayer = Config.Bind(
             "Solo Cart Guard", "WorksInMultiplayer", false,
             "When false (default), the guard only applies in true solo (player count <= 1). When true, the host (master client) also gets it in MP lobbies (the 'away' check keys off the host's position).");
+
+        SoloCartGuardLingerSeconds = Config.Bind(
+            "Solo Cart Guard", "LingerSeconds", 3f,
+            new ConfigDescription(
+                "Only used when OnlyWhenAway=true. Protection stays ON for this many seconds AFTER you get close to your loot before handing defense back to you — so nothing gets smashed in the instant you arrive while enemies are mid-swing. 0 = protection ends the moment you're within AwayDistance.",
+                new AcceptableValueRange<float>(0f, 30f)));
 
         _harmony = new Harmony(PluginGuid);
         _harmony.PatchAll();

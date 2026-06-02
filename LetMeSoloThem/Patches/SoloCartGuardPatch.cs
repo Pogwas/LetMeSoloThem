@@ -4,17 +4,18 @@ using UnityEngine;
 
 namespace LetMeSoloThem.Patches;
 
-// Solo Cart Guard: stops enemies from destroying / chipping the value of the solo player's valuables
-// while the player is away and can't defend them. Intercepts at the valuable's universal value-loss
-// chokepoint (PhysGrabObjectImpactDetector.Break) and skips it only for ENEMY-caused breaks.
+// Solo Cart Guard: stops enemies from damaging OR shoving the solo player's valuables while the player
+// is away and can't defend them. Two enemy-agnostic seams:
+//   1. HurtCollider.PhysObjectHurt prefix — the deliberate-attack seam. Skipping it for an enemy-owned
+//      collider hitting a guarded valuable stops the break impulse (no value loss/destroy) AND the
+//      knockback force (enemies can't shove your loot around) in one place.
+//   2. PhysGrabObjectImpactDetector.Break prefix — a backstop for any other enemy-caused value loss that
+//      doesn't route through (1); gated on the game's own enemyInteractionTimer (set by PhysObjectHurt on
+//      enemy hits to non-held objects). The player's own drops/throws never set it, so they break normally.
 //
-// Enemy causation is the game's own signal: HurtCollider.PhysObjectHurt sets impactDetector
-// .enemyInteractionTimer = 2f whenever an enemy hits a (non-held) phys object. This is enemy-agnostic
-// (every enemy's attack routes through HurtCollider), so we cover all loot-smashing enemies without
-// naming any of them. The player's own drops/throws never set this flag, so they break normally.
-//
-// Enemy force is still applied (loot gets shoved); only the value loss / break is suppressed.
-// Host-authoritative (solo = host); no RPC. Auto-registered by Plugin.Awake's PatchAll().
+// Neither names a specific enemy, so all loot-smashing enemies are covered. The away gate is global
+// (proximity to the nearest valuable) with a LingerSeconds window so protection doesn't drop the instant
+// you arrive. Host-authoritative (solo = host); no RPC. Auto-registered by Plugin.Awake's PatchAll().
 //
 // NOTE: the bare [HarmonyPatch] on the class is REQUIRED. PatchAll() only discovers classes annotated
 // with [HarmonyPatch]; without it the per-method attribute below is silently skipped (Quirk 7).
@@ -34,9 +35,66 @@ public static class SoloCartGuardPatch
     // Reset each new level by OnGuardArmed (called from SoloGraceHud's disarmed->armed transition).
     private static bool _suppressLogged;
 
-    // Set true each time BreakPrefix actually suppresses an enemy break; the HUD consumes it (clears it)
+    // Set true each time a prefix actually suppresses an enemy hit; the HUD consumes it (clears it)
     // to flash a "Blocked!" pulse so the player sees the guard working in the moment.
     internal static bool SuppressionPulse;
+
+    // ---- Away-distance protection with "linger" -----------------------------------------------------
+    // The away gate is global (proximity to the nearest valuable), maintained once per frame by Tick()
+    // (called from SoloGraceHud.Update) so we can add a linger window: when you step close to your loot,
+    // protection stays on for LingerSeconds before handing defense back to you — so nothing gets smashed
+    // in the instant you arrive while enemies are mid-swing.
+    private const float NearScanInterval = 0.25f;
+    private static bool _protectByDistance = true;
+    private static float _lingerRemaining;
+    private static bool _nearCached;
+    private static float _nearScanTimer;
+
+    // Whether away-distance protection is currently in effect (always true in always-on mode). Read by HUD.
+    internal static bool ProtectingByDistance => _protectByDistance;
+
+    internal static void Tick(float dt)
+    {
+        try
+        {
+            if (!Plugin.SoloCartGuardEnabled.Value || !Plugin.SoloCartGuardOnlyWhenAway.Value)
+            {
+                _protectByDistance = true;
+                _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
+                _nearCached = false;
+                return;
+            }
+
+            _nearScanTimer -= dt;
+            if (_nearScanTimer <= 0f)
+            {
+                _nearScanTimer = NearScanInterval;
+                _nearCached = LocalPlayerNearLoot();
+            }
+
+            if (!_nearCached)
+            {
+                // Away from loot: protected, and keep the linger window topped up for when you return.
+                _protectByDistance = true;
+                _lingerRemaining = Plugin.SoloCartGuardLingerSeconds.Value;
+            }
+            else if (_lingerRemaining > 0f)
+            {
+                // Just got close: keep protecting through the linger window.
+                _lingerRemaining -= dt;
+                _protectByDistance = true;
+            }
+            else
+            {
+                // Close and linger elapsed: hand defense back to the present player.
+                _protectByDistance = false;
+            }
+        }
+        catch
+        {
+            _protectByDistance = true; // fail safe: keep loot protected
+        }
+    }
 
     // True in true-solo, or (when WorksInMultiplayer) when we're the authoritative host.
     // A null player list = offline singleplayer session, treated as solo.
@@ -82,44 +140,19 @@ public static class SoloCartGuardPatch
         }
     }
 
-    // True when the guard should suppress THIS break. Returns false (vanilla) on any uncertainty.
-    internal static bool GuardActive(PhysGrabObjectImpactDetector detector)
+    // Shared gate (everything except the per-seam "enemy-caused" discriminator). Returns false (vanilla)
+    // on any uncertainty. Distance is handled globally via _protectByDistance (maintained by Tick).
+    private static bool GuardConditions(PhysGrabObjectImpactDetector detector)
     {
-        try
-        {
-            if (!Plugin.SoloCartGuardEnabled.Value) return false;
-            if (detector == null) return false;
-
-            // Enemy-caused only. Player drops/throws never set this flag.
-            if (EnemyInteractionTimerRef(detector) <= 0f) return false;
-
-            // Valuables only (not generic breakable props).
-            if (ValuableObjectRef(detector) == null) return false;
-
-            // Solo / host gate.
-            if (!IsSoloOrAuthorizedHost()) return false;
-
-            // Cart-only scope.
-            if (Plugin.SoloCartGuardCartOnly.Value && CurrentCartRef(detector) == null)
-                return false;
-
-            // Away gate: protect only when the local player is NOT near the loot.
-            if (Plugin.SoloCartGuardOnlyWhenAway.Value)
-            {
-                var pc = PlayerController.instance;
-                if (pc == null || pc.playerAvatarScript == null) return false; // can't tell -> vanilla
-                float dist = Vector3.Distance(
-                    pc.playerAvatarScript.transform.position,
-                    detector.transform.position);
-                if (dist <= Plugin.SoloCartGuardAwayDistance.Value) return false; // present -> defend it
-            }
-
-            return true;
-        }
-        catch
-        {
+        if (!Plugin.SoloCartGuardEnabled.Value) return false;
+        if (detector == null) return false;
+        if (ValuableObjectRef(detector) == null) return false;                          // valuables only
+        if (!IsSoloOrAuthorizedHost()) return false;                                    // solo / host
+        if (Plugin.SoloCartGuardCartOnly.Value && CurrentCartRef(detector) == null)     // cart-only scope
             return false;
-        }
+        if (Plugin.SoloCartGuardOnlyWhenAway.Value && !_protectByDistance)              // away (+ linger)
+            return false;
+        return true;
     }
 
     // Lightweight "is the guard armed for this run" check for the HUD label (no per-hit fields).
@@ -137,14 +170,47 @@ public static class SoloCartGuardPatch
         }
     }
 
-    // Skip the value-loss/destroy when the guard is active. Returning false skips the original Break.
+    // Seam 1: stop enemies from BOTH damaging and shoving guarded loot. Skip HurtCollider.PhysObjectHurt
+    // (which applies the break impulse AND the knockback force/torque) for an enemy-owned collider hitting
+    // a guarded valuable. enemyHost is non-null only for enemy attack colliders — player weapons (sword,
+    // etc.) have it null, so player hits pass through untouched.
+    [HarmonyPatch(typeof(HurtCollider), "PhysObjectHurt")]
+    [HarmonyPrefix]
+    public static bool PhysObjectHurtPrefix(HurtCollider __instance, PhysGrabObject physGrabObject)
+    {
+        try
+        {
+            if (__instance == null || __instance.enemyHost == null) return true; // not an enemy attack
+            if (physGrabObject == null) return true;
+            var detector = physGrabObject.GetComponent<PhysGrabObjectImpactDetector>();
+            if (detector == null) return true;
+            if (!GuardConditions(detector)) return true;
+
+            SuppressionPulse = true; // HUD "Blocked!" pulse
+            if (!_suppressLogged)
+            {
+                _suppressLogged = true;
+                Plugin.Log.LogDebug("[SoloCartGuard] suppressing enemy attack on valuable (no damage, no knockback) — first this arm");
+            }
+            return false; // skip: no break impulse, no force/torque, no destroy-launch, no enemyInteractionTimer
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.LogWarning($"[SoloCartGuard] PhysObjectHurt prefix threw: {ex.GetType().Name}: {ex.Message}");
+            return true;
+        }
+    }
+
+    // Seam 2 (backstop): skip any other enemy-caused value loss that doesn't route through PhysObjectHurt.
+    // Gated on the game's enemyInteractionTimer so player-caused breaks (drops/throws) still apply.
     [HarmonyPatch(typeof(PhysGrabObjectImpactDetector), "Break")]
     [HarmonyPrefix]
     public static bool BreakPrefix(PhysGrabObjectImpactDetector __instance)
     {
         try
         {
-            if (!GuardActive(__instance)) return true;
+            if (!GuardConditions(__instance)) return true;
+            if (EnemyInteractionTimerRef(__instance) <= 0f) return true; // enemy-caused breaks only
 
             SuppressionPulse = true; // HUD reads this to flash "Blocked!"
             if (!_suppressLogged)

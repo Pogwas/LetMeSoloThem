@@ -27,11 +27,8 @@ public class SoloGraceHud : MonoBehaviour
     private bool _cartGuardArmed;
     private const float CartGuardFlashSeconds = 1.5f;
     private const float CartGuardStandbyBlinkSeconds = 1.5f;
-    private const float CartGuardNearScanInterval = 0.3f;
     private float _cartGuardFlashRemaining;
     private float _cartGuardStandbyBlinkRemaining;
-    private float _cartGuardNearScanTimer;
-    private bool _cartGuardNear;
     private bool _cartGuardWasNear;
 
     private void OnDestroy()
@@ -57,6 +54,7 @@ public class SoloGraceHud : MonoBehaviour
             CarryEscapeTracker.TryOnTick();
             TrackChassisTransition();
             TrackReliefTransition();
+            SoloCartGuardPatch.Tick(Time.deltaTime);
             TrackCartGuardTransition();
             if (shouldLog) ChassisDiagnostic();
         }
@@ -164,27 +162,14 @@ public class SoloGraceHud : MonoBehaviour
             if (_cartGuardFlashRemaining < 0f) _cartGuardFlashRemaining = 0f;
         }
 
-        // "Standby" detection: only meaningful while armed in away-gated mode. Throttle the scene scan.
-        bool near = false;
-        if (armed && Plugin.SoloCartGuardOnlyWhenAway.Value)
-        {
-            _cartGuardNearScanTimer -= Time.deltaTime;
-            if (_cartGuardNearScanTimer <= 0f)
-            {
-                _cartGuardNearScanTimer = CartGuardNearScanInterval;
-                _cartGuardNear = SoloCartGuardPatch.LocalPlayerNearLoot();
-            }
-            near = _cartGuardNear;
-        }
-        else
-        {
-            _cartGuardNear = false;
-        }
+        // "Standby": armed in away mode but distance-protection is currently paused (you're near your loot
+        // and the linger window elapsed). Proximity + linger state lives in SoloCartGuardPatch.Tick.
+        bool standby = armed && Plugin.SoloCartGuardOnlyWhenAway.Value && !SoloCartGuardPatch.ProtectingByDistance;
 
-        // Entering "near" blinks Standby once; after the blink the label hides until we're away again.
-        if (near && !_cartGuardWasNear)
+        // Entering standby blinks "Standby" once; after the blink the label hides until protecting again.
+        if (standby && !_cartGuardWasNear)
             _cartGuardStandbyBlinkRemaining = CartGuardStandbyBlinkSeconds;
-        _cartGuardWasNear = near;
+        _cartGuardWasNear = standby;
         if (_cartGuardStandbyBlinkRemaining > 0f)
         {
             _cartGuardStandbyBlinkRemaining -= Time.deltaTime;
